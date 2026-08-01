@@ -310,6 +310,36 @@ const d2r = THREE.MathUtils.degToRad;
 handG.rotation.z = d2r(HANDLE_DEG);
 razor.rotation.z = d2r(6);
 
+/* ---- реальные габариты бритвы в обеих ключевых позах ----
+   Раньше вертикальный угол обзора камеры был подобран один раз под
+   альбомный экран. На портретном экране телефона горизонтальный угол
+   обзора сужается пропорционально аспекту — и бритва вылезала за края.
+   Вместо жёсткого числа меряем фактический Box3 бритвы в позе покоя и
+   в раскрытой позе, и дальше на каждом кадре подбираем fov так, чтобы
+   объект гарантированно помещался и по ширине, и по высоте — на любых
+   пропорциях экрана. */
+function measureHalf(lookPoint){
+  const box = new THREE.Box3().setFromObject(razor);
+  return {
+    w: Math.max(box.max.x - lookPoint.x, lookPoint.x - box.min.x),
+    h: Math.max(box.max.y - lookPoint.y, lookPoint.y - box.min.y),
+  };
+}
+bladeG.rotation.z = d2r(BLADE_IDLE); razor.rotation.z = 0;
+const IDLE_HALF  = measureHalf(new THREE.Vector3(0, -1.55, 0));
+bladeG.rotation.z = d2r(BLADE_OPEN); razor.rotation.z = d2r(-HANDLE_DEG);
+const FINAL_HALF = measureHalf(new THREE.Vector3(-0.33, 2.42, 0));
+const FRAME_MARGIN = 1.18;   // запас, чтобы бритва не упиралась в самый край
+
+function fitFov(distance, halfW, halfH, aspect, margin){
+  const h = halfH * margin, w = halfW * margin;
+  const vFovForHeight = 2 * Math.atan(h / distance);
+  const vFovForWidth  = 2 * Math.atan((w / aspect) / distance);
+  const deg = THREE.MathUtils.radToDeg(Math.max(vFovForHeight, vFovForWidth));
+  return clampFov(deg);
+}
+function clampFov(deg){ return Math.min(58, Math.max(18, deg)); }
+
 /* ============================================================
    СОСТОЯНИЕ И ЖЕСТЫ
    ============================================================ */
@@ -403,6 +433,14 @@ function frame(now){
 
   camera.position.lerpVectors(camFrom, camTo, zoom);
   camera.lookAt(tmp.lerpVectors(lookFrom, lookTo, zoom));
+
+  /* угол обзора подстраивается под текущий аспект экрана, чтобы бритва
+     не обрезалась по бокам на узких (портретных) экранах */
+  const halfW = lerp(IDLE_HALF.w, FINAL_HALF.w, zoom);
+  const halfH = lerp(IDLE_HALF.h, FINAL_HALF.h, zoom);
+  const dist  = camera.position.distanceTo(tmp);
+  const fov   = fitFov(dist, halfW, halfH, camera.aspect, FRAME_MARGIN);
+  if(Math.abs(camera.fov - fov) > 0.02){ camera.fov = fov; camera.updateProjectionMatrix(); }
 
   /* меню привязано к спроецированной точке клинка */
   if(menu > 0){
