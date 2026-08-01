@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Заставка — гравировка</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500;6..96,700&family=Barlow+Condensed:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#050506;
+  --steel:#f4f6f8;
+  --brass:#e02128;
+  --brass-lo:#8f1418;
+  --ui:#5a636e;
+
+  /* тайминг всей сцены — одна точка правки */
+  --t-in:.18s;      /* пауза перед первым штрихом */
+  --t-sweep:1.70s;  /* блик по готовому знаку */
+  --t-rule:1.85s;   /* волосяная линия */
+  --t-word:2.00s;   /* первая буква */
+  --t-sub:2.55s;    /* подпись */
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--ink);
+  font-family:"Barlow Condensed",-apple-system,sans-serif;
+  overflow:hidden;
+}
+
+/* ================= сцена ================= */
+.stage{
+  position:fixed;inset:0;overflow:hidden;
+  display:grid;place-items:center;
+  background:
+    radial-gradient(90% 65% at 50% 22%, #16181c 0%, transparent 62%),
+    radial-gradient(120% 100% at 50% 55%, #0c0d10 0%, #050506 70%);
+}
+/* виньетка «дышит» — держит взгляд в центре */
+.stage::after{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:6;
+  background:radial-gradient(72% 58% at 50% 48%, transparent 38%, rgba(0,0,0,.78) 100%);
+  animation:breathe 7s ease-in-out infinite;
+}
+@keyframes breathe{0%,100%{opacity:.9}50%{opacity:1}}
+
+/* плёночное зерно */
+.grain{
+  position:absolute;inset:-60%;pointer-events:none;z-index:7;
+  opacity:.13;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation:grain 1.2s steps(4) infinite;
+}
+@keyframes grain{
+  0%{transform:translate(0,0)}25%{transform:translate(-2%,1%)}
+  50%{transform:translate(1%,-2%)}75%{transform:translate(-1%,-1%)}100%{transform:translate(0,0)}
+}
+
+/* ================= композиция ================= */
+.lockup{
+  position:relative;z-index:3;
+  display:flex;flex-direction:column;align-items:center;
+  will-change:transform,opacity,filter;
+}
+.markwrap{
+  position:relative;width:min(30vw,260px);aspect-ratio:874/654;
+  transform:scale(1.018);
+  animation:settleMark 1.1s cubic-bezier(.16,1,.3,1) var(--t-sweep) forwards;
+}
+@keyframes settleMark{to{transform:scale(1)}}
+.mark{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.mark path{fill:none;stroke-width:160;stroke-linecap:round}
+
+/* волосяная линия под знаком */
+.rule{
+  width:min(26vw,220px);height:1px;margin-top:26px;
+  background:linear-gradient(90deg,transparent,var(--brass-lo) 18%,var(--brass) 50%,var(--brass-lo) 82%,transparent);
+  transform:scaleX(0);opacity:0;
+  animation:ruleIn .85s cubic-bezier(.16,1,.3,1) var(--t-rule) forwards;
+}
+@keyframes ruleIn{to{transform:scaleX(1);opacity:.85}}
+
+.word{
+  margin-top:22px;display:flex;
+  font-family:"Bodoni Moda",Didot,"Times New Roman",serif;
+  font-weight:500;font-size:clamp(26px,4.4vw,46px);line-height:1;
+  letter-spacing:.2em;text-indent:.2em;color:var(--steel);
+}
+.word span{
+  display:inline-block;opacity:0;
+  transform:translateY(18px) scale(.96);filter:blur(9px);
+  animation:letterIn .95s cubic-bezier(.16,1,.3,1) forwards;
+  will-change:transform,opacity,filter;
+}
+@keyframes letterIn{to{opacity:1;transform:none;filter:blur(0)}}
+.word span:nth-child(1){animation-delay:calc(var(--t-word) + 0ms)}
+.word span:nth-child(2){animation-delay:calc(var(--t-word) + 60ms)}
+.word span:nth-child(3){animation-delay:calc(var(--t-word) + 120ms)}
+.word span:nth-child(4){animation-delay:calc(var(--t-word) + 180ms)}
+.word span:nth-child(5){animation-delay:calc(var(--t-word) + 240ms)}
+.word span:nth-child(6){animation-delay:calc(var(--t-word) + 300ms)}
+
+.sub{
+  margin-top:14px;font-size:clamp(9px,1.1vw,12px);
+  text-transform:uppercase;color:var(--brass);opacity:0;
+  letter-spacing:1.1em;text-indent:1.1em;
+  animation:subIn 1.1s cubic-bezier(.16,1,.3,1) var(--t-sub) forwards;
+}
+@keyframes subIn{to{opacity:.92;letter-spacing:.46em;text-indent:.46em}}
+
+/* ================= гравировка ================= */
+/* Основной штрих проявляется от начала к концу.
+   Длительность у каждого своя — пропорционально длине, так движение живое. */
+.mark .cut{
+  stroke-dasharray:1 2;stroke-dashoffset:1.02;
+  animation:draw var(--d) cubic-bezier(.45,.05,.25,1) var(--s) forwards;
+}
+@keyframes draw{to{stroke-dashoffset:0}}
+
+/* Свежий рез светится и остывает — белая копия поверх, гаснет следом. */
+.mark .heat{
+  stroke:#fff;stroke-width:150;opacity:.3;
+  stroke-dasharray:1 2;stroke-dashoffset:1.02;
+  animation:draw var(--d) cubic-bezier(.45,.05,.25,1) var(--s) forwards,
+            cool .42s ease-out calc(var(--s) + var(--d) - .16s) forwards;
+  filter:url(#soften);
+}
+@keyframes cool{to{opacity:0}}
+
+/* Искра на кромке реза — короткий отрезок, бегущий по контуру. */
+.mark .spark{
+  stroke:#fff;stroke-width:34;stroke-linecap:round;
+  stroke-dasharray:.016 3;stroke-dashoffset:0;opacity:0;
+  animation:spark var(--d) cubic-bezier(.45,.05,.25,1) var(--s) forwards,
+            sparkFade var(--d) ease-out var(--s) forwards;
+  filter:url(#glow);
+}
+@keyframes spark{to{stroke-dashoffset:-1}}
+@keyframes sparkFade{0%{opacity:0}12%{opacity:1}82%{opacity:1}100%{opacity:0}}
+
+/* ================= блик по готовому знаку ================= */
+.sweep{
+  position:absolute;inset:0;z-index:4;pointer-events:none;
+  -webkit-mask-image:linear-gradient(100deg,transparent 44%,#000 50%,transparent 56%);
+  mask-image:linear-gradient(100deg,transparent 44%,#000 50%,transparent 56%);
+  -webkit-mask-size:300% 100%;mask-size:300% 100%;
+  -webkit-mask-position:180% 0;mask-position:180% 0;
+  animation:sweep .95s cubic-bezier(.45,0,.25,1) var(--t-sweep) forwards;
+}
+.sweep .mark path{stroke:#fff;opacity:.85;filter:url(#soften)}
+@keyframes sweep{to{-webkit-mask-position:-140% 0;mask-position:-140% 0}}
+
+/* ================= служебное ================= */
+.skip{
+  position:fixed;right:22px;bottom:20px;z-index:9;
+  border:1px solid #1d2126;background:transparent;color:var(--ui);
+  font-family:inherit;font-size:12px;letter-spacing:.2em;text-transform:uppercase;
+  padding:8px 18px;cursor:pointer;opacity:0;
+  transition:color .2s,border-color .2s,background .2s;
+  animation:fadeIn .5s ease-out .6s forwards;
+}
+.skip:hover{color:#e8ecf1;border-color:#39414a;background:#0d0f12}
+@keyframes fadeIn{to{opacity:1}}
+
+.tools{
+  position:fixed;left:20px;top:18px;z-index:9;display:flex;gap:8px;align-items:center;
+  font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#333a43;
+}
+.tools button{
+  border:1px solid #1d2126;background:transparent;color:var(--ui);
+  font-family:inherit;font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+  padding:6px 12px;cursor:pointer;
+}
+.tools button:hover{color:#e8ecf1;border-color:#39414a}
+
+/* конечное состояние — для пропуска и для повторных визитов */
+.stage.end .cut{stroke-dashoffset:0;animation:none}
+.stage.end .heat,.stage.end .spark,.stage.end .sweep{display:none}
+.stage.end .markwrap{transform:scale(1);animation:none}
+.stage.end .rule{transform:scaleX(1);opacity:.85;animation:none}
+.stage.end .word span{opacity:1;transform:none;filter:none;animation:none}
+.stage.end .sub{opacity:.92;letter-spacing:.46em;text-indent:.46em;animation:none}
+
+/* уважение к настройке «меньше движения» */
+@media (prefers-reduced-motion:reduce){
+  .grain,.stage::after{animation:none}
+  .heat,.spark,.sweep{display:none}
+  .cut{stroke-dashoffset:0;animation:none}
+  .rule{transform:scaleX(1);opacity:.85;animation:none}
+  .markwrap{transform:scale(1);animation:none}
+  .lockup{animation:softIn .6s ease-out both}
+  .word span{opacity:1;transform:none;filter:none;animation:none}
+  .sub{opacity:.92;letter-spacing:.46em;text-indent:.46em;animation:none}
+  @keyframes softIn{from{opacity:0}to{opacity:1}}
+}
+</style>
+</head>
+<body>
+
+<!-- градиенты, фильтры — один раз на документ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="wg1" gradientUnits="userSpaceOnUse" x1="336" y1="353" x2="456" y2="887">
+      <stop offset="0" stop-color="#ffffff"/><stop offset=".075" stop-color="#fefefe"/><stop offset=".5" stop-color="#838383"/><stop offset=".915" stop-color="#464646"/><stop offset="1" stop-color="#3a3a3a"/>
+    </linearGradient>
+    <linearGradient id="wg2" gradientUnits="userSpaceOnUse" x1="636" y1="411" x2="456" y2="887">
+      <stop offset="0" stop-color="#f6f6f6"/><stop offset=".08" stop-color="#eeeeee"/><stop offset=".5" stop-color="#7d7d7d"/><stop offset=".92" stop-color="#454545"/><stop offset="1" stop-color="#3a3a3a"/>
+    </linearGradient>
+    <linearGradient id="wg3" gradientUnits="userSpaceOnUse" x1="636" y1="411" x2="796" y2="886">
+      <stop offset="0" stop-color="#f6f6f6"/><stop offset=".08" stop-color="#eeeeee"/><stop offset=".5" stop-color="#7f7f7f"/><stop offset=".92" stop-color="#474747"/><stop offset="1" stop-color="#3c3c3c"/>
+    </linearGradient>
+    <linearGradient id="wg4" gradientUnits="userSpaceOnUse" x1="936" y1="353" x2="796" y2="886">
+      <stop offset="0" stop-color="#ffffff"/><stop offset=".075" stop-color="#fefefe"/><stop offset=".5" stop-color="#878787"/><stop offset=".92" stop-color="#535353"/><stop offset="1" stop-color="#464646"/>
+    </linearGradient>
+
+    <filter id="wShadow" filterUnits="userSpaceOnUse" x="156" y="253" width="954" height="734">
+      <feDropShadow dx="0" dy="6" stdDeviation="16" flood-color="#000" flood-opacity=".55"/>
+    </filter>
+    <filter id="glow" filterUnits="userSpaceOnUse" x="156" y="253" width="954" height="734">
+      <feGaussianBlur stdDeviation="26" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="soften" filterUnits="userSpaceOnUse" x="156" y="253" width="954" height="734">
+      <feGaussianBlur stdDeviation="7"/>
+    </filter>
+  </defs>
+</svg>
+
+<div class="stage" id="stage">
+  <div class="grain"></div>
+
+  <div class="lockup">
+    <div class="markwrap">
+      <svg class="mark" id="markMain" viewBox="196 293 874 654" aria-label="W" role="img"></svg>
+      <div class="sweep"><svg class="mark" id="markSweep" viewBox="196 293 874 654" aria-hidden="true"></svg></div>
+    </div>
+    <div class="rule"></div>
+    <div class="word" id="word"></div>
+    <div class="sub">Chișinău</div>
+  </div>
+</div>
+
+<button class="skip" id="skip">Пропустить</button>
+<div class="tools">
+  <button id="replay">Повтор</button>
+  <button id="forget">Забыть просмотр</button>
+  <span id="state"></span>
+</div>
+
+<script>
+/* Название бренда — заглушка, меняется здесь */
+const BRAND = 'BARBER';
+
+/* Четыре штриха в порядке письма.
+   d — длительность реза, пропорциональна длине штриха: длинный режется дольше.
+   s — момент старта; штрихи слегка перекрываются, поэтому рука не «дёргается». */
+const STROKES = [
+  {cls:'w-s1', d:'M336 433 L456 807', grad:'wg1', dur:.44, start:.18},
+  {cls:'w-s2', d:'M456 807 L636 491', grad:'wg2', dur:.41, start:.56},
+  {cls:'w-s3', d:'M636 491 L796 806', grad:'wg3', dur:.40, start:.91},
+  {cls:'w-s4', d:'M796 806 L936 433', grad:'wg4', dur:.45, start:1.25},
+];
+
+function buildMark(el, {plain=false} = {}){
+  el.innerHTML = STROKES.map(s=>{
+    const vars = `--d:${s.dur}s;--s:${s.start}s`;
+    const stroke = plain ? '#fff' : `url(#${s.grad})`;
+    const shadow = plain ? '' : 'filter="url(#wShadow)"';
+    return `
+      <path class="cut ${s.cls}" d="${s.d}" stroke="${stroke}" ${shadow} pathLength="1" style="${vars}"/>
+      ${plain ? '' : `
+      <path class="heat ${s.cls}" d="${s.d}" pathLength="1" style="${vars}"/>
+      <path class="spark ${s.cls}" d="${s.d}" pathLength="1" style="${vars}"/>`}`;
+  }).join('');
+}
+
+buildMark(document.getElementById('markMain'));
+buildMark(document.getElementById('markSweep'), {plain:true});
+document.getElementById('word').innerHTML =
+  [...BRAND].map(c=>`<span>${c}</span>`).join('');
+
+/* ---- поведение ---- */
+const stage = document.getElementById('stage');
+const KEY   = 'splash-seen';
+const state = document.getElementById('state');
+
+function markSeen(){
+  try{ localStorage.setItem(KEY, Date.now()); }catch(e){}
+  paintState();
+}
+function paintState(){
+  let seen = null;
+  try{ seen = localStorage.getItem(KEY); }catch(e){}
+  state.textContent = seen ? 'заставка уже просмотрена → сразу конечный кадр' : 'первый визит → полная анимация';
+}
+function end(){ stage.classList.add('end'); markSeen(); }
+function play(){
+  stage.classList.remove('end');
+  const clone = stage.cloneNode(true);
+  stage.parentNode.replaceChild(clone, stage);
+  location.reload();
+}
+
+/* повторный визит — сразу конечный кадр, без анимации */
+let seen = null;
+try{ seen = localStorage.getItem(KEY); }catch(e){}
+if(seen) stage.classList.add('end');
+paintState();
+
+/* полная анимация досмотрена — запоминаем */
+if(!seen) setTimeout(markSeen, 3600);
+
+document.getElementById('skip').addEventListener('click', end);
+document.getElementById('replay').addEventListener('click', ()=>{
+  try{ localStorage.removeItem(KEY); }catch(e){}
+  location.reload();
+});
+document.getElementById('forget').addEventListener('click', ()=>{
+  try{ localStorage.removeItem(KEY); }catch(e){}
+  paintState();
+});
+document.addEventListener('keydown', e=>{
+  if(e.code==='Space'){ e.preventDefault(); try{localStorage.removeItem(KEY);}catch(err){} location.reload(); }
+  if(e.code==='Escape') end();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="196 293 874 654" role="img" aria-label="W">
+  <defs>
+    <!-- Каждый штрих: белый на верхнем конце, тёмно-серый на нижнем.
+         Координаты сняты с исходного растра, радиус скругления 80. -->
+    <linearGradient id="wg1" gradientUnits="userSpaceOnUse" x1="336" y1="353" x2="456" y2="887">
+      <stop offset="0" stop-color="#ffffff"/><stop offset=".075" stop-color="#fefefe"/><stop offset=".5" stop-color="#838383"/><stop offset=".915" stop-color="#464646"/><stop offset="1" stop-color="#3a3a3a"/>
+    </linearGradient>
+    <linearGradient id="wg2" gradientUnits="userSpaceOnUse" x1="636" y1="411" x2="456" y2="887">
+      <stop offset="0" stop-color="#f6f6f6"/><stop offset=".08" stop-color="#eeeeee"/><stop offset=".5" stop-color="#7d7d7d"/><stop offset=".92" stop-color="#454545"/><stop offset="1" stop-color="#3a3a3a"/>
+    </linearGradient>
+    <linearGradient id="wg3" gradientUnits="userSpaceOnUse" x1="636" y1="411" x2="796" y2="886">
+      <stop offset="0" stop-color="#f6f6f6"/><stop offset=".08" stop-color="#eeeeee"/><stop offset=".5" stop-color="#7f7f7f"/><stop offset=".92" stop-color="#474747"/><stop offset="1" stop-color="#3c3c3c"/>
+    </linearGradient>
+    <linearGradient id="wg4" gradientUnits="userSpaceOnUse" x1="936" y1="353" x2="796" y2="886">
+      <stop offset="0" stop-color="#ffffff"/><stop offset=".075" stop-color="#fefefe"/><stop offset=".5" stop-color="#878787"/><stop offset=".92" stop-color="#535353"/><stop offset="1" stop-color="#464646"/>
+    </linearGradient>
+
+    <!-- мягкая тень даёт то самое затемнение на пересечениях -->
+    <filter id="wShadow" filterUnits="userSpaceOnUse" x="156" y="253" width="954" height="734">
+      <feDropShadow dx="0" dy="6" stdDeviation="16" flood-color="#000" flood-opacity=".55"/>
+    </filter>
+  </defs>
+
+  <g fill="none" stroke-width="160" stroke-linecap="round">
+    <!-- внешние штрихи -->
+    <path class="w-s1" d="M336 433 L456 807" stroke="url(#wg1)" filter="url(#wShadow)" pathLength="1"/>
+    <path class="w-s4" d="M796 806 L936 433" stroke="url(#wg4)" filter="url(#wShadow)" pathLength="1"/>
+    <!-- внутренние штрихи поверх -->
+    <path class="w-s2" d="M456 807 L636 491" stroke="url(#wg2)" filter="url(#wShadow)" pathLength="1"/>
+    <path class="w-s3" d="M636 491 L796 806" stroke="url(#wg3)" filter="url(#wShadow)" pathLength="1"/>
+  </g>
+</svg>

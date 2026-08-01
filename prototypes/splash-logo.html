@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Заставка — варианты анимации логотипа</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,700;6..96,900&family=Barlow+Condensed:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#08080a;
+  --ink-2:#0e0f12;
+  --steel-1:#f2f5f8;
+  --steel-2:#aeb6bf;
+  --steel-3:#5d6570;
+  --brass:#b8935a;
+  --brass-lo:#7a5f36;
+  --ui:#6b7480;
+  --ui-hi:#e8ecf1;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--ink);
+  color:var(--ui);
+  font-family:"Barlow Condensed",-apple-system,sans-serif;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+
+/* ---------- панель управления ---------- */
+.bar{
+  display:flex;align-items:center;gap:4px;
+  padding:14px 18px;
+  border-bottom:1px solid #17191d;
+  background:linear-gradient(#0c0d10,#08080a);
+  flex-wrap:wrap;
+  z-index:10;
+}
+.bar .label{
+  font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+  color:#4a525c;margin-right:14px;
+}
+.tab{
+  appearance:none;border:1px solid #1e2126;background:transparent;
+  color:var(--ui);font-family:inherit;font-size:13px;letter-spacing:.08em;
+  text-transform:uppercase;padding:7px 14px;cursor:pointer;
+  transition:.22s cubic-bezier(.2,.7,.3,1);
+}
+.tab:hover{color:var(--ui-hi);border-color:#333a42}
+.tab[aria-selected="true"]{
+  color:var(--ink);background:var(--steel-1);border-color:var(--steel-1);
+  box-shadow:0 0 22px rgba(226,234,242,.18);
+}
+.spacer{flex:1}
+.replay{
+  border:1px solid var(--brass-lo);color:var(--brass);
+  background:transparent;font-family:inherit;font-size:12px;
+  letter-spacing:.16em;text-transform:uppercase;padding:7px 16px;cursor:pointer;
+  transition:.22s;
+}
+.replay:hover{background:var(--brass);color:var(--ink);border-color:var(--brass)}
+.timing{font-size:11px;letter-spacing:.14em;color:#3f464f;margin-left:14px}
+
+/* ---------- сцена ---------- */
+.stage{
+  flex:1;position:relative;overflow:hidden;
+  background:radial-gradient(120% 90% at 50% 45%,#131519 0%,#0a0b0d 55%,#050506 100%);
+  display:grid;place-items:center;
+}
+/* виньетка */
+.stage::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(75% 60% at 50% 50%,transparent 40%,rgba(0,0,0,.72) 100%);
+}
+/* зерно */
+.grain{
+  position:absolute;inset:-50%;pointer-events:none;opacity:.16;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation:grain 1.1s steps(3) infinite;
+}
+@keyframes grain{
+  0%{transform:translate(0,0)}33%{transform:translate(-3%,2%)}66%{transform:translate(2%,-3%)}100%{transform:translate(0,0)}
+}
+
+.lockup{
+  position:relative;display:flex;flex-direction:column;align-items:center;gap:26px;
+  will-change:transform,opacity,filter;
+}
+
+/* марка */
+.mark{width:230px;height:auto;overflow:visible}
+.mark path{fill:none;stroke-width:160;stroke-linecap:round}
+
+/* словесная марка */
+.word{
+  font-family:"Bodoni Moda",Didot,"Times New Roman",serif;
+  font-weight:700;font-size:44px;line-height:.9;
+  letter-spacing:.16em;text-indent:.16em;
+  color:var(--steel-1);
+  display:flex;
+}
+.word span{display:inline-block;will-change:transform,opacity,filter}
+.sub{
+  font-size:12px;letter-spacing:.52em;text-indent:.52em;
+  text-transform:uppercase;color:var(--brass);
+  margin-top:-14px;
+}
+
+/* подпись под сценой */
+.caption{
+  position:absolute;left:0;right:0;bottom:22px;text-align:center;
+  font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:#333a43;
+  z-index:5;
+}
+.note{
+  position:absolute;top:18px;left:20px;max-width:290px;z-index:5;
+  font-size:12px;line-height:1.65;letter-spacing:.03em;color:#39404a;
+}
+.note b{color:#5c6672;font-weight:500}
+
+/* ================================================================
+   ВАРИАНТ 1 — ГРАВИРОВКА
+   Марка вычерчивается штрихом, как гравировка по стали,
+   затем заливается металлом. Буквы проступают по очереди.
+   ================================================================ */
+/* штрихи вычерчиваются в порядке письма: вниз, вверх к пику, вниз, вверх */
+[data-v="1"] .mark path{
+  stroke-dasharray:1;stroke-dashoffset:1;
+  animation:draw .48s cubic-bezier(.55,.05,.35,1) forwards;
+}
+[data-v="1"] .mark .w-s1{animation-delay:.12s}
+[data-v="1"] .mark .w-s2{animation-delay:.55s}
+[data-v="1"] .mark .w-s3{animation-delay:.98s}
+[data-v="1"] .mark .w-s4{animation-delay:1.41s}
+[data-v="1"] .word span{
+  opacity:0;transform:translateY(14px);
+  animation:letterUp .7s cubic-bezier(.2,.8,.2,1) forwards;
+}
+[data-v="1"] .word span:nth-child(1){animation-delay:1.95s}
+[data-v="1"] .word span:nth-child(2){animation-delay:2.03s}
+[data-v="1"] .word span:nth-child(3){animation-delay:2.10s}
+[data-v="1"] .word span:nth-child(4){animation-delay:2.18s}
+[data-v="1"] .word span:nth-child(5){animation-delay:2.25s}
+[data-v="1"] .word span:nth-child(6){animation-delay:2.33s}
+[data-v="1"] .sub{opacity:0;animation:subIn .8s ease-out 2.75s forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes fillIn{from{opacity:0}to{opacity:1}}
+@keyframes letterUp{to{opacity:1;transform:translateY(0)}}
+@keyframes subIn{from{opacity:0;letter-spacing:.9em}to{opacity:1;letter-spacing:.52em}}
+
+/* ================================================================
+   ВАРИАНТ 2 — БЛИК ЛЕЗВИЯ
+   Логотип «выгравирован» и почти невидим. По нему проходит
+   резкий блик, как свет по стали, и оставляет знак светящимся.
+   ================================================================ */
+[data-v="2"] .lockup{position:relative}
+[data-v="2"] .engraved{opacity:.07;filter:blur(.2px)}
+[data-v="2"] .shine{
+  position:absolute;inset:0;display:grid;place-items:center;
+  -webkit-mask-image:linear-gradient(105deg,transparent 42%,#000 50%,transparent 58%);
+  mask-image:linear-gradient(105deg,transparent 42%,#000 50%,transparent 58%);
+  -webkit-mask-size:280% 100%;mask-size:280% 100%;
+  -webkit-mask-position:190% 0;mask-position:190% 0;
+  animation:sweep 1.5s cubic-bezier(.5,0,.2,1) .35s forwards;
+}
+/* знак остаётся освещённым после прохода блика */
+[data-v="2"] .settle{
+  position:absolute;inset:0;display:grid;place-items:center;
+  opacity:0;animation:settle 1s ease-out 1.5s forwards;
+}
+/* специальный блик — идёт строго по знаку, а не по всему экрану */
+[data-v="2"] .glintwrap{
+  position:absolute;width:460px;height:460px;overflow:hidden;
+  display:block;pointer-events:none;
+}
+[data-v="2"] .glint{
+  position:absolute;top:-25%;left:-45%;width:38%;height:150%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);
+  filter:blur(7px);transform:rotate(16deg);opacity:0;
+  animation:glint 1.5s cubic-bezier(.5,0,.2,1) .35s;
+}
+@keyframes sweep{to{-webkit-mask-position:-120% 0;mask-position:-120% 0}}
+@keyframes settle{to{opacity:1}}
+@keyframes glint{
+  0%{opacity:0;transform:translateX(0) rotate(16deg)}
+  25%{opacity:1}
+  75%{opacity:1}
+  100%{opacity:0;transform:translateX(420%) rotate(16deg)}
+}
+
+/* ================================================================
+   ВАРИАНТ 3 — СБОРКА
+   Части знака слетаются из разных точек и защёлкиваются
+   с лёгким перелётом. Разрядка букв схлопывается.
+   ================================================================ */
+/* четыре штриха слетаются и защёлкиваются */
+[data-v="3"] .mark path{
+  opacity:0;transform-box:fill-box;transform-origin:center;
+  animation:partIn .9s cubic-bezier(.17,.9,.24,1.02) forwards;
+}
+[data-v="3"] .mark .w-s1{transform:translate(-340px,-190px) rotate(-20deg)}
+[data-v="3"] .mark .w-s2{transform:translate(-190px,340px) rotate(14deg);animation-delay:.09s}
+[data-v="3"] .mark .w-s3{transform:translate(190px,340px) rotate(-14deg);animation-delay:.18s}
+[data-v="3"] .mark .w-s4{transform:translate(340px,-190px) rotate(20deg);animation-delay:.27s}
+[data-v="3"] .word{
+  animation:squeeze 1.1s cubic-bezier(.2,.85,.25,1) .55s both;
+}
+[data-v="3"] .word span{opacity:0;animation:fillIn .5s ease-out .55s forwards}
+[data-v="3"] .sub{opacity:0;animation:subIn .7s ease-out 1.45s forwards}
+@keyframes partIn{to{opacity:1;transform:none}}
+@keyframes squeeze{
+  from{letter-spacing:.9em;text-indent:.9em}
+  to{letter-spacing:.16em;text-indent:.16em}
+}
+
+/* ================================================================
+   ВАРИАНТ 4 — ИЗ ТЕМНОТЫ
+   Знак наплывает из черноты, расфокус уходит в резкость.
+   В конце всё гаснет — прямая передача сцене с шаветтой.
+   ================================================================ */
+[data-v="4"] .lockup{
+  animation:emerge 2.1s cubic-bezier(.22,.72,.2,1) both,
+            handoff .7s ease-in 2.45s forwards;
+}
+[data-v="4"] .sub{animation:subIn .9s ease-out 1.5s both}
+[data-v="4"] .halo{
+  position:absolute;width:420px;height:420px;border-radius:50%;
+  background:radial-gradient(circle,rgba(184,147,90,.16),transparent 62%);
+  opacity:0;animation:halo 2.4s ease-out .3s forwards;
+}
+@keyframes emerge{
+  from{opacity:0;transform:scale(1.55);filter:blur(22px) brightness(.4)}
+  60%{opacity:1}
+  to{opacity:1;transform:scale(1);filter:blur(0) brightness(1)}
+}
+@keyframes handoff{
+  to{opacity:0;transform:scale(.94);filter:blur(6px)}
+}
+@keyframes halo{
+  0%{opacity:0;transform:scale(.6)}
+  55%{opacity:1}
+  100%{opacity:0;transform:scale(1.25)}
+}
+
+/* элементы, специфичные для варианта — прячем в остальных */
+.shine,.settle,.glintwrap,.halo{display:none}
+[data-v="2"] .shine{display:grid}
+[data-v="4"] .halo{display:block}
+[data-v="2"] .base{display:none}
+.engraved{display:none}
+[data-v="2"] .engraved{display:flex}
+
+@media (prefers-reduced-motion:reduce){
+  .grain{animation:none}
+}
+@media (max-width:640px){
+  .mark{width:124px;height:124px}
+  .word{font-size:30px}
+  .note{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <span class="label">Заставка · вариант</span>
+  <button class="tab" data-set="1" aria-selected="true">1 · Гравировка</button>
+  <button class="tab" data-set="2" aria-selected="false">2 · Блик лезвия</button>
+  <button class="tab" data-set="3" aria-selected="false">3 · Сборка</button>
+  <button class="tab" data-set="4" aria-selected="false">4 · Из темноты</button>
+  <span class="spacer"></span>
+  <span class="timing" id="timing">2.9 c</span>
+  <button class="replay" id="replay">Повтор</button>
+</div>
+
+<div class="stage" id="stage" data-v="1">
+  <div class="grain"></div>
+  <div class="halo"></div>
+
+  <div class="note">
+    Знак — <b>твой</b>, векторизован из растра: 4 штриха,
+    расхождение по тону с оригиналом менее 1%.<br>
+    Временная только словесная часть — нужно название.
+  </div>
+
+  <!-- градиенты и тень знака — один раз на страницу, копии знака ссылаются сюда -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <linearGradient id="wg1" gradientUnits="userSpaceOnUse" x1="336" y1="353" x2="456" y2="887">
+        <stop offset="0" stop-color="#ffffff"/><stop offset=".075" stop-color="#fefefe"/><stop offset=".5" stop-color="#838383"/><stop offset=".915" stop-color="#464646"/><stop offset="1" stop-color="#3a3a3a"/>
+      </linearGradient>
+      <linearGradient id="wg2" gradientUnits="userSpaceOnUse" x1="636" y1="411" x2="456" y2="887">
+        <stop offset="0" stop-color="#f6f6f6"/><stop offset=".08" stop-color="#eeeeee"/><stop offset=".5" stop-color="#7d7d7d"/><stop offset=".92" stop-color="#454545"/><stop offset="1" stop-color="#3a3a3a"/>
+      </linearGradient>
+      <linearGradient id="wg3" gradientUnits="userSpaceOnUse" x1="636" y1="411" x2="796" y2="886">
+        <stop offset="0" stop-color="#f6f6f6"/><stop offset=".08" stop-color="#eeeeee"/><stop offset=".5" stop-color="#7f7f7f"/><stop offset=".92" stop-color="#474747"/><stop offset="1" stop-color="#3c3c3c"/>
+      </linearGradient>
+      <linearGradient id="wg4" gradientUnits="userSpaceOnUse" x1="936" y1="353" x2="796" y2="886">
+        <stop offset="0" stop-color="#ffffff"/><stop offset=".075" stop-color="#fefefe"/><stop offset=".5" stop-color="#878787"/><stop offset=".92" stop-color="#535353"/><stop offset="1" stop-color="#464646"/>
+      </linearGradient>
+      <filter id="wShadow" filterUnits="userSpaceOnUse" x="156" y="253" width="954" height="734">
+        <feDropShadow dx="0" dy="6" stdDeviation="16" flood-color="#000" flood-opacity=".55"/>
+      </filter>
+    </defs>
+  </svg>
+
+  <!-- гравированный дубль для варианта 2 -->
+  <div class="lockup engraved" aria-hidden="true" data-lockup></div>
+
+  <!-- основной lockup -->
+  <div class="lockup base" id="lockup" data-lockup></div>
+
+  <div class="shine" aria-hidden="true">
+    <div class="lockup" data-lockup></div>
+  </div>
+  <div class="settle" aria-hidden="true">
+    <div class="lockup" data-lockup></div>
+  </div>
+  <div class="glintwrap" aria-hidden="true"><div class="glint"></div></div>
+
+  <div class="caption" id="caption">Гравировка · знак вычерчивается штрихом, затем заливается сталью</div>
+</div>
+
+<script>
+/* Разметка знака вставляется в каждую копию отдельно.
+   Через <use> нельзя: CSS-классы не достают до содержимого shadow-дерева. */
+const MARK = `
+<svg class="mark" viewBox="196 293 874 654" aria-hidden="true">
+  <path class="w-s1" d="M336 433 L456 807" stroke="url(#wg1)" filter="url(#wShadow)" pathLength="1"/>
+  <path class="w-s4" d="M796 806 L936 433" stroke="url(#wg4)" filter="url(#wShadow)" pathLength="1"/>
+  <path class="w-s2" d="M456 807 L636 491" stroke="url(#wg2)" filter="url(#wShadow)" pathLength="1"/>
+  <path class="w-s3" d="M636 491 L796 806" stroke="url(#wg3)" filter="url(#wShadow)" pathLength="1"/>
+</svg>
+<div class="word">${[...'BARBER'].map(c=>`<span>${c}</span>`).join('')}</div>
+<div class="sub">Chișinău</div>`;
+
+document.querySelectorAll('[data-lockup]').forEach(el => el.innerHTML = MARK);
+
+const CAPTIONS = {
+  1:['Гравировка · штрихи вычерчиваются в порядке письма','3.4 c'],
+  2:['Блик лезвия · свет проходит по стали и проявляет знак','2.6 c'],
+  3:['Сборка · четыре штриха слетаются и защёлкиваются','2.2 c'],
+  4:['Из темноты · наплыв из расфокуса, в конце гаснет — передача сцене с шаветтой','3.2 c']
+};
+
+const stage   = document.getElementById('stage');
+const caption = document.getElementById('caption');
+const timing  = document.getElementById('timing');
+const tabs    = [...document.querySelectorAll('.tab')];
+
+function play(v){
+  stage.removeAttribute('data-v');
+  void stage.offsetWidth;            // сброс анимаций
+  stage.setAttribute('data-v', v);
+  const [text, t] = CAPTIONS[v];
+  caption.textContent = text;
+  timing.textContent  = t;
+}
+
+tabs.forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    tabs.forEach(t=>t.setAttribute('aria-selected', String(t===tab)));
+    play(tab.dataset.set);
+  });
+});
+
+document.getElementById('replay').addEventListener('click',()=>{
+  play(stage.getAttribute('data-v'));
+});
+
+// пробел — повтор, стрелки — переключение
+document.addEventListener('keydown',e=>{
+  if(e.code === 'Space'){ e.preventDefault(); play(stage.getAttribute('data-v')); }
+  if(e.key === 'ArrowRight' || e.key === 'ArrowLeft'){
+    const i = tabs.findIndex(t=>t.getAttribute('aria-selected')==='true');
+    const n = (i + (e.key==='ArrowRight'?1:tabs.length-1)) % tabs.length;
+    tabs[n].click();
+  }
+});
+
+</script>
+</body>
+</html>
