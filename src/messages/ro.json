@@ -7,6 +7,22 @@
   },
   "Home": {
     "title": "W Condrea Barber",
-    "tagline": "Barber · Chișinău"
+    "tagline": "Barber · Chișinău",
+    "cta": "Vezi lista de prețuri"
+  },
+  "Price": {
+    "title": "Listă de prețuri",
+    "duration": "min",
+    "currency": "MDL"
+  },
+  "Bio": {
+    "title": "Biografie"
+  },
+  "Portfolio": {
+    "title": "Portofoliu"
+  },
+  "Booking": {
+    "title": "Programare la tuns",
+    "soon": "Programarea online vine în curând. Deocamdată — scrie pe Telegram sau Instagram."
   }
 }

@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { Bodoni_Moda, Barlow_Condensed } from "next/font/google";
 import { hasLocale, NextIntlClientProvider } from "next-intl";
 import { notFound } from "next/navigation";
 import { routing } from "@/i18n/routing";
+import { SiteHeader } from "@/components/site-header";
 import "../globals.css";
 
 // Корневой layout лежит под динамическим сегментом [locale] — так и
@@ -16,6 +18,18 @@ export const metadata: Metadata = {
   description: "Barber · Chișinău",
 };
 
+const bodoni = Bodoni_Moda({
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  variable: "--font-bodoni",
+});
+
+const barlow = Barlow_Condensed({
+  subsets: ["latin"],
+  weight: ["300", "400", "500"],
+  variable: "--font-barlow",
+});
+
 type Props = {
   children: React.ReactNode;
   params: Promise<{ locale: string }>;
@@ -29,9 +43,12 @@ export default async function LocaleLayout({ children, params }: Props) {
   }
 
   return (
-    <html lang={locale}>
-      <body className="min-h-screen bg-black text-white antialiased">
-        <NextIntlClientProvider>{children}</NextIntlClientProvider>
+    <html lang={locale} className={`${bodoni.variable} ${barlow.variable}`}>
+      <body className="min-h-screen font-sans antialiased">
+        <NextIntlClientProvider>
+          <SiteHeader />
+          {children}
+        </NextIntlClientProvider>
       </body>
     </html>
   );
