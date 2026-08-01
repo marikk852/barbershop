@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  DONE
+}
+
+/// Услуга из прайс-листа. Длительность в минутах — основа расчёта слотов записи.
+model Service {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  nameRu      String
+  nameRo      String
+  durationMin Int
+  priceCents  Int
+  order       Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bookings Booking[]
+
+  @@index([active, order])
+}
+
+/// Запись клиента. startsAt/endsAt хранятся в UTC явно (endsAt фиксируется
+/// в момент создания = startsAt + длительность услуги на тот момент —
+/// последующее изменение durationMin у Service не должно задним числом
+/// менять уже сделанные записи).
+model Booking {
+  id          String        @id @default(cuid())
+  serviceId   String
+  service     Service       @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  clientName  String
+  clientPhone String
+  startsAt    DateTime
+  endsAt      DateTime
+  status      BookingStatus @default(PENDING)
+  notes       String?
+
+  /// id сообщения в Telegram-боте с кнопками подтверждения — чтобы потом
+  /// отредактировать то же сообщение вместо отправки нового (задача #8).
+  telegramMessageId Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([startsAt])
+  @@index([status])
+}
+
+/// График работы по дням недели. weekday: 0=воскресенье..6=суббота (как JS Date#getDay).
+/// startMinute/endMinute — минуты от полуночи, без временных зон.
+model WorkingHours {
+  id          String  @id @default(cuid())
+  weekday     Int     @unique
+  startMinute Int
+  endMinute   Int
+  closed      Boolean @default(false)
+}
+
+/// Разовые блокировки времени: отпуск, обед, личные дела.
+model TimeOff {
+  id        String   @id @default(cuid())
+  startsAt  DateTime
+  endsAt    DateTime
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([startsAt, endsAt])
+}
+
+/// Работа для портфолио.
+model PortfolioItem {
+  id        String   @id @default(cuid())
+  imageUrl  String
+  captionRu String?
+  captionRo String?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([order])
+}
+
+/// Редактируемый контент сайта — одна строка (singleton, id всегда 1).
+model SiteContent {
+  id               Int      @id @default(1)
+  bioRu            String   @default("")
+  bioRo            String   @default("")
+  phone            String?
+  instagram        String?
+  telegramUsername String?
+  address          String?
+  updatedAt        DateTime @updatedAt
+}

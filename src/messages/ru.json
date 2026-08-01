@@ -1,0 +1,12 @@
+{
+  "Nav": {
+    "booking": "Запись на стрижку",
+    "bio": "Биография",
+    "price": "Прайс-лист",
+    "portfolio": "Портфолио"
+  },
+  "Home": {
+    "title": "W Condrea Barber",
+    "tagline": "Barber · Chișinău"
+  }
+}
