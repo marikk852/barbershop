@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Шаветта — 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500&family=Barlow+Condensed:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#000;
+  --red:#d81f26;
+  --red-lo:#7d1216;
+  --steel:#eef2f6;
+  --ui:#5a636e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;overscroll-behavior:none;background:#000}
+body{font-family:"Barlow Condensed",-apple-system,sans-serif;touch-action:none}
+
+#gl{position:fixed;inset:0;display:block;width:100%;height:100%;z-index:1;cursor:grab}
+#gl:active{cursor:grabbing}
+
+/* ---------- меню на клинке ---------- */
+.nav{
+  position:fixed;z-index:4;top:50%;transform:translateY(-50%);
+  display:flex;flex-direction:column;gap:clamp(12px,3vh,30px);
+  pointer-events:none;opacity:0;
+}
+.nav a{
+  pointer-events:auto;text-decoration:none;display:block;
+  opacity:0;transform:translateX(22px);
+  transition:color .25s,letter-spacing .35s cubic-bezier(.16,1,.3,1);
+}
+.nav .num{
+  display:block;font-size:10px;letter-spacing:.34em;color:var(--red-lo);
+  margin-bottom:4px;text-shadow:0 1px 0 rgba(255,255,255,.45);
+}
+.nav .lbl{
+  display:block;font-family:"Bodoni Moda",Didot,serif;font-weight:500;
+  font-size:clamp(16px,2.1vw,25px);letter-spacing:.05em;color:#15171b;line-height:1.05;
+  text-shadow:0 1px 0 rgba(255,255,255,.5),0 -1px 1px rgba(0,0,0,.35);
+}
+.nav a:hover .lbl{color:#000;letter-spacing:.12em}
+.nav a::after{
+  content:"";display:block;height:1px;margin-top:8px;
+  background:linear-gradient(90deg,var(--red),transparent);
+  transform:scaleX(.18);transform-origin:left;
+  transition:transform .4s cubic-bezier(.16,1,.3,1);
+}
+.nav a:hover::after{transform:scaleX(1)}
+
+/* ---------- подсказки ---------- */
+.hint{
+  position:fixed;left:50%;bottom:6vh;transform:translateX(-50%);z-index:5;
+  display:flex;align-items:center;gap:12px;
+  font-size:11px;letter-spacing:.26em;text-transform:uppercase;color:#3b434c;
+  pointer-events:none;transition:opacity .5s;
+}
+.hint .dot{width:5px;height:5px;border-radius:50%;background:var(--red);
+  animation:pulse 1.9s ease-in-out infinite}
+.hint .bar{width:44px;height:1px;background:linear-gradient(90deg,transparent,#3b434c)}
+.hint .bar.r{background:linear-gradient(90deg,#3b434c,transparent)}
+@keyframes pulse{0%,100%{opacity:.35;transform:scale(1)}50%{opacity:1;transform:scale(1.5)}}
+
+.tools{
+  position:fixed;left:16px;top:14px;z-index:6;display:flex;gap:7px;flex-wrap:wrap;align-items:center;
+  font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#333a43;
+}
+.tools button{
+  border:1px solid #1d2126;background:transparent;color:var(--ui);font-family:inherit;
+  font-size:11px;letter-spacing:.16em;text-transform:uppercase;padding:6px 11px;cursor:pointer;
+}
+.tools button:hover{color:#e8ecf1;border-color:#39414a}
+.tools button[aria-pressed="true"]{background:var(--steel);color:#000;border-color:var(--steel)}
+.stat{position:fixed;right:16px;top:14px;z-index:6;font-size:11px;letter-spacing:.18em;
+  color:#333a43;font-variant-numeric:tabular-nums;text-align:right;line-height:1.7}
+
+.fallback{
+  position:fixed;inset:0;z-index:20;display:none;place-items:center;background:#000;
+  color:#6b7480;font-size:13px;letter-spacing:.16em;text-transform:uppercase;text-align:center;padding:24px;
+}
+</style>
+</head>
+<body>
+
+<canvas id="gl"></canvas>
+
+<nav class="nav" id="nav">
+  <a href="#"><span class="num">01</span><span class="lbl">Запись на стрижку</span></a>
+  <a href="#"><span class="num">02</span><span class="lbl">Биография</span></a>
+  <a href="#"><span class="num">03</span><span class="lbl">Прайс-лист</span></a>
+  <a href="#"><span class="num">04</span><span class="lbl">Портфолио</span></a>
+</nav>
+
+<div class="hint" id="hint">
+  <span class="bar"></span><span class="dot"></span>
+  <span>В стороны — повернуть · вверх — раскрыть</span>
+  <span class="dot"></span><span class="bar r"></span>
+</div>
+
+<div class="tools">
+  <button id="bRed"   aria-pressed="true">Красная</button>
+  <button id="bBlack" aria-pressed="false">Чёрная</button>
+  <button id="bReset">В начало</button>
+  <button id="bEnd">В конец</button>
+</div>
+<div class="stat" id="stat"></div>
+<div class="fallback" id="fallback">Браузер не поддерживает WebGL</div>
+
+<script type="module">
+import * as THREE from '../assets/vendor/three.module.min.js';
+
+const canvas = document.getElementById('gl');
+const navEl  = document.getElementById('nav');
+const hintEl = document.getElementById('hint');
+const statEl = document.getElementById('stat');
+const links  = [...navEl.querySelectorAll('a')];
+
+let renderer;
+try{
+  renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true, powerPreference:'high-performance'});
+}catch(e){
+  document.getElementById('fallback').style.display='grid';
+  throw e;
+}
+/* мобильный приоритет: плотность пикселей ограничена, иначе телефон греется */
+const DPR = Math.min(window.devicePixelRatio || 1, 2);
+renderer.setPixelRatio(DPR);
+renderer.outputColorSpace  = THREE.SRGBColorSpace;
+renderer.toneMapping       = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.98;
+renderer.setClearColor(0x000000, 1);
+
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
+
+/* ============================================================
+   СТУДИЙНОЕ ОКРУЖЕНИЕ
+   Металл виден только через отражения. Вместо загрузки HDRI
+   (лишние мегабайты на телефон) строим комнату из светящихся
+   плоскостей и запекаем её в карту окружения прямо в браузере.
+   ============================================================ */
+function buildStudio(){
+  const env = new THREE.Scene();
+  env.background = new THREE.Color(0x000000);
+
+  /* Равномерно светящийся экран даёт плоское белое пятно.
+     Настоящие отражатели имеют перепад яркости — именно он читается
+     на металле как объём. Поэтому каждая панель с градиентом. */
+  const gradTex = (a,b)=>{
+    const c = document.createElement('canvas'); c.width=4; c.height=256;
+    const g = c.getContext('2d').createLinearGradient(0,0,0,256);
+    const hex = v => '#'+[0,0,0].map(()=>Math.round(Math.min(1,v)*255).toString(16).padStart(2,'0')).join('');
+    g.addColorStop(0, hex(a)); g.addColorStop(1, hex(b));
+    const ctx=c.getContext('2d'); ctx.fillStyle=g; ctx.fillRect(0,0,4,256);
+    const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
+  };
+  const panel = (w,h,x,y,z,rx,ry,power,fade=0.25)=>{
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(w,h),
+      new THREE.MeshBasicMaterial({
+        map: gradTex(1, fade),
+        color: new THREE.Color(power,power,power),
+        side: THREE.DoubleSide,
+      })
+    );
+    m.position.set(x,y,z); m.rotation.set(rx,ry,0);
+    env.add(m);
+    return m;
+  };
+
+  /* Ключевой софтбокс — сверху слева, даёт длинный блик вдоль клинка. */
+  panel(16, 5, -4, 9, 2, Math.PI/2, 0, 10.0, .22);
+  /* ЗАПОЛНЯЮЩИЙ ЭКРАН ЗА КАМЕРОЙ — главное для металла.
+     Плоскость клинка смотрит в камеру, а значит отражает то, что позади неё.
+     Без этого экрана полированная сталь выглядит чёрной. */
+  panel(26, 18, 0, 0, 15, 0, 0, 1.05, .16);
+  /* две узкие полосы по бокам — очерчивают рёбра и фаски */
+  panel(2.6, 16, -8, 1, 3, 0, Math.PI/2, 9.0, .15);
+  panel(1.4, 14,  8, 0, 3, 0, -Math.PI/2, 5.0, .2);
+  /* контровой сзади — отделяет силуэт от чёрного фона */
+  panel(8, 8, -2, 3, -11, 0, 0, 4.0, .3);
+  /* нижняя подсветка фаски */
+  panel(12, 2, 0, -7, 3, -Math.PI/2, 0, 1.2, .4);
+
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  pmrem.compileEquirectangularShader();
+  const rt = pmrem.fromScene(env, 0.03);
+  pmrem.dispose();
+  env.traverse(o=>{ o.geometry?.dispose?.(); o.material?.dispose?.(); });
+  return rt.texture;
+}
+scene.environment = buildStudio();
+
+/* ============================================================
+   МАТЕРИАЛЫ
+   ============================================================ */
+const steel = new THREE.MeshPhysicalMaterial({
+  color:0xeef2f6, metalness:1, roughness:0.115,
+  envMapIntensity:1.9, clearcoat:0,
+});
+/* лёгкая шлифовка вдоль полотна — блик вытягивается в полосу, как на фото */
+steel.anisotropy = 0.55;
+steel.anisotropyRotation = Math.PI/2;
+
+const steelDark = new THREE.MeshPhysicalMaterial({
+  color:0xbfc6cd, metalness:1, roughness:0.28, envMapIntensity:1.2,
+});
+
+/* тёмный зазор между сменным лезвием и держателем */
+const bladeLine = new THREE.MeshPhysicalMaterial({
+  color:0x24272b, metalness:1, roughness:0.42, envMapIntensity:0.8,
+});
+
+const handleMat = new THREE.MeshPhysicalMaterial({
+  color:0xd81f26, metalness:0, roughness:0.22,
+  clearcoat:1, clearcoatRoughness:0.045, envMapIntensity:1.7,
+});
+
+/* ============================================================
+   ГЕОМЕТРИЯ
+   Пивот (ось поворота) у обеих частей — в начале координат.
+   ============================================================ */
+const BLADE_LEN = 3.25, HANDLE_LEN = 3.55;
+
+/* --- параметры выдавливания --- */
+/* ГЕОМЕТРИЯ СНЯТА С ФОТО-РЕФЕРЕНСА: контуры сегментированы по цвету,
+   трассированы и упрощены (ε=2px). Пивот = центр втулки. */
+const EX_BLADE = {depth:0.050, bevelEnabled:true, bevelThickness:0.014,
+                  bevelSize:0.015, bevelSegments:3, curveSegments:8};
+const EX_SCALE = {depth:0.085, bevelEnabled:true, bevelThickness:0.055,
+                  bevelSize:0.060, bevelSegments:7, curveSegments:8};
+const GAP = 0.135;
+
+const BLADE_PTS  = [[0.150,0.170],[-0.130,0.170],[-0.126,-0.269],[-0.204,-1.329],[-0.330,-3.487],[-0.310,-3.569],[-0.293,-3.593],[-0.287,-3.586],[-0.248,-3.615],[-0.251,-3.629],[-0.232,-3.648],[-0.133,-3.702],[-0.038,-3.720],[0.139,-3.659],[0.198,-3.622],[0.246,-3.567],[0.301,-2.232],[0.299,-2.152],[0.280,-2.095],[0.126,-1.798],[0.076,-1.638],[0.098,-1.580],[0.157,-1.530],[0.159,-1.513],[0.164,-1.405],[0.155,-1.379],[0.170,-1.323],[0.218,-0.484],[0.191,-0.455],[0.176,-0.498],[0.166,-0.506],[0.146,-0.496],[0.148,-0.402],[0.072,-0.353],[0.014,-0.296]];
+const HOOK_PTS   = [[0.020,-0.060],[0.160,-0.060],[0.217,0.107],[0.224,0.282],[0.236,0.308],[0.227,0.322],[0.236,0.371],[0.224,0.502],[0.235,0.544],[0.219,0.665],[0.210,0.704],[0.187,0.708],[0.175,0.780],[0.119,0.942],[0.074,0.986],[0.030,0.979],[0.011,0.939],[0.055,0.625],[0.045,0.436],[0.023,0.365],[-0.055,0.211]];
+const SCALE_PTS  = [[-0.067,0.238],[-0.137,0.216],[-0.229,0.085],[-0.249,0.022],[-0.248,-0.021],[-0.211,-0.015],[-0.196,-0.081],[-0.206,-0.089],[-0.183,-0.165],[-0.149,-0.427],[-0.147,-0.484],[-0.179,-0.506],[-0.182,-0.533],[-0.137,-1.130],[-0.134,-1.674],[-0.173,-2.195],[-0.252,-2.682],[-0.368,-3.169],[-0.541,-3.716],[-0.541,-3.753],[-0.513,-3.799],[-0.466,-3.829],[-0.398,-3.848],[-0.231,-3.844],[-0.066,-3.815],[0.024,-3.754],[0.080,-3.671],[0.121,-3.561],[0.196,-3.207],[0.290,-2.584],[0.327,-2.141],[0.339,-1.753],[0.329,-1.295],[0.297,-0.851],[0.228,-0.352],[0.156,-0.000],[0.124,0.099],[0.086,0.166],[0.009,0.223]];
+const INSERT_PTS = [[-0.085,-0.550],[-0.094,-0.654],[-0.101,-0.758],[-0.109,-0.861],[-0.115,-0.965],[-0.122,-1.069],[-0.128,-1.173],[-0.135,-1.277],[-0.142,-1.380],[-0.148,-1.484],[-0.155,-1.588],[-0.161,-1.692],[-0.167,-1.796],[-0.173,-1.899],[-0.180,-2.003],[-0.186,-2.107],[-0.193,-2.211],[-0.199,-2.314],[-0.205,-2.418],[-0.212,-2.522],[-0.217,-2.626],[-0.222,-2.730],[-0.229,-2.833],[-0.235,-2.937],[-0.240,-3.041],[-0.246,-3.145],[-0.253,-3.249],[-0.259,-3.352],[-0.258,-3.456],[-0.251,-3.560],[-0.283,-3.560],[-0.290,-3.456],[-0.291,-3.352],[-0.285,-3.249],[-0.278,-3.145],[-0.272,-3.041],[-0.267,-2.937],[-0.261,-2.833],[-0.254,-2.730],[-0.249,-2.626],[-0.244,-2.522],[-0.237,-2.418],[-0.231,-2.314],[-0.225,-2.211],[-0.218,-2.107],[-0.212,-2.003],[-0.205,-1.899],[-0.199,-1.796],[-0.193,-1.692],[-0.187,-1.588],[-0.180,-1.484],[-0.174,-1.380],[-0.167,-1.277],[-0.160,-1.173],[-0.154,-1.069],[-0.147,-0.965],[-0.141,-0.861],[-0.133,-0.758],[-0.126,-0.654],[-0.117,-0.550]];
+const RING_R     = 0.120;
+
+function ptsShape(a){
+  const s = new THREE.Shape();
+  a.forEach((p,i)=> i ? s.lineTo(p[0],p[1]) : s.moveTo(p[0],p[1]));
+  s.autoClose = true; return s;
+}
+
+function makeBladeBody(){
+  const g = new THREE.ExtrudeGeometry(ptsShape(BLADE_PTS), EX_BLADE);
+  g.translate(0,0,-0.025); return g;
+}
+function makeHook(){
+  if(!HOOK_PTS) return new THREE.BufferGeometry();
+  const g = new THREE.ExtrudeGeometry(ptsShape(HOOK_PTS), EX_BLADE);
+  g.translate(0,0,-0.024); return g;
+}
+function makeInsert(){
+  const g = new THREE.ExtrudeGeometry(ptsShape(INSERT_PTS), {depth:0.012, bevelEnabled:false});
+  g.translate(0,0,0.030); return g;
+}
+function makeScale(){
+  const g = new THREE.ExtrudeGeometry(ptsShape(SCALE_PTS), EX_SCALE);
+  g.translate(0,0,-0.0425); return g;
+}
+function makeEyelet(){
+  const grp = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(RING_R*0.74, RING_R*0.26, 14, 30), steel);
+  const hole = new THREE.Mesh(new THREE.CircleGeometry(RING_R*0.52, 26), bladeLine);
+  hole.position.z = 0.004;
+  grp.add(ring, hole);
+  return grp;
+}
+
+const razor  = new THREE.Group();
+const bladeG = new THREE.Group();
+const handG  = new THREE.Group();
+
+const bladeMesh = new THREE.Mesh(makeBladeBody(), steel);
+const hookMesh  = new THREE.Mesh(makeHook(),      steel);
+const insMesh   = new THREE.Mesh(makeInsert(),    bladeLine);
+bladeG.add(bladeMesh, hookMesh, insMesh);
+
+/* рукоять — ДВЕ накладки, клинок ходит в зазоре между ними */
+const scaleGeo = makeScale();
+const scaleA = new THREE.Mesh(scaleGeo, handleMat); scaleA.position.z =  GAP;
+const scaleB = new THREE.Mesh(scaleGeo, handleMat); scaleB.position.z = -GAP;
+const eyeA = makeEyelet(); eyeA.position.z =  GAP + 0.10;
+const eyeB = makeEyelet(); eyeB.position.z = -GAP - 0.10; eyeB.rotation.y = Math.PI;
+handG.add(scaleA, scaleB, eyeA, eyeB);
+
+/* ось: заклёпка с шайбой */
+const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.052,0.052,2*GAP+0.24,20), steelDark);
+pin.rotation.x = Math.PI/2;
+razor.add(pin);
+
+razor.add(bladeG, handG);
+scene.add(razor);
+
+/* ============================================================
+   ПОЗА
+   Покой — раскрытая «галочка» как на фото.
+   Раскрытие — клинок доходит до одной линии с рукоятью.
+   ============================================================ */
+const HANDLE_DEG   = 32.04;     // рукоять вправо-вниз
+const BLADE_IDLE   = -19.01;    // клинок влево-вниз → угол V ≈ 34°
+const BLADE_OPEN   = HANDLE_DEG - 180;   // тот же итог, но поворот прочь от рукояти
+const d2r = THREE.MathUtils.degToRad;
+
+handG.rotation.z = d2r(HANDLE_DEG);
+razor.rotation.z = d2r(6);
+
+/* ---- реальные габариты бритвы в обеих ключевых позах ----
+   Раньше вертикальный угол обзора камеры был подобран один раз под
+   альбомный экран. На портретном экране телефона горизонтальный угол
+   обзора сужается пропорционально аспекту — и бритва вылезала за края.
+   Вместо жёсткого числа меряем фактический Box3 бритвы в позе покоя и
+   в раскрытой позе, и дальше на каждом кадре подбираем fov так, чтобы
+   объект гарантированно помещался и по ширине, и по высоте — на любых
+   пропорциях экрана. */
+function measureHalf(lookPoint){
+  const box = new THREE.Box3().setFromObject(razor);
+  return {
+    w: Math.max(box.max.x - lookPoint.x, lookPoint.x - box.min.x),
+    h: Math.max(box.max.y - lookPoint.y, lookPoint.y - box.min.y),
+  };
+}
+bladeG.rotation.z = d2r(BLADE_IDLE); razor.rotation.z = 0;
+const IDLE_HALF  = measureHalf(new THREE.Vector3(0, -1.55, 0));
+bladeG.rotation.z = d2r(BLADE_OPEN); razor.rotation.z = d2r(-HANDLE_DEG);
+const FINAL_HALF = measureHalf(new THREE.Vector3(-0.33, 2.42, 0));
+const FRAME_MARGIN = 1.18;   // запас, чтобы бритва не упиралась в самый край
+
+/* ---- ЭКСПЕРИМЕНТ: пристыкованная шапка ----
+   Открытый клинок+рукоять образуют почти прямую линию (BLADE_OPEN =
+   HANDLE_DEG-180). Для вертикального финала эту линию довернули до
+   вертикали (-HANDLE_DEG). Для шапки — довернуть до ГОРИЗОНТАЛИ:
+   ещё +90°. Пивот остаётся точкой опоры, просто вся линия ложится вбок. */
+const DOCK_RAZOR_Z = d2r(-HANDLE_DEG) + Math.PI/2;
+razor.rotation.z = DOCK_RAZOR_Z;
+const DOCK_LOOK = new THREE.Vector3(0.086, -0.101, 0);   // истинный центр Box3 (измерено)
+const DOCK_HALF = measureHalf(DOCK_LOOK);
+console.log('DOCK_HALF', DOCK_HALF);
+{
+  const box = new THREE.Box3().setFromObject(razor);
+  console.log('DOCK_BOX_CENTER', (box.min.x+box.max.x)/2, (box.min.y+box.max.y)/2, 'min', box.min.x, box.min.y, 'max', box.max.x, box.max.y);
+}
+
+function fitFov(distance, halfW, halfH, aspect, margin){
+  const h = halfH * margin, w = halfW * margin;
+  const vFovForHeight = 2 * Math.atan(h / distance);
+  const vFovForWidth  = 2 * Math.atan((w / aspect) / distance);
+  const deg = THREE.MathUtils.radToDeg(Math.max(vFovForHeight, vFovForWidth));
+  return clampFov(deg);
+}
+function clampFov(deg){ return Math.min(58, Math.max(18, deg)); }
+
+/* ============================================================
+   СОСТОЯНИЕ И ЖЕСТЫ
+   ============================================================ */
+let p = 0, pTarget = 0;          // раскрытие + наезд
+let spin = 0, spinVel = 0;       // поворот вокруг вертикали
+let idleT = 0, reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const clamp = (v,a,b)=>Math.min(b,Math.max(a,v));
+const lerp  = (a,b,t)=>a+(b-a)*t;
+const seg   = (x,a,b)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
+
+let drag=false, axis=null, lastX=0, lastY=0, startX=0, startY=0;
+canvas.addEventListener('pointerdown', e=>{
+  drag=true; axis=null;
+  startX=lastX=e.clientX; startY=lastY=e.clientY;
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', e=>{
+  if(!drag) return;
+  const dx=e.clientX-lastX, dy=e.clientY-lastY;
+  /* ось жеста определяется один раз в начале — иначе диагональ
+     будет одновременно крутить и раскрывать */
+  if(!axis){
+    const tx=Math.abs(e.clientX-startX), ty=Math.abs(e.clientY-startY);
+    if(Math.max(tx,ty) > 7) axis = tx>ty ? 'x' : 'y';
+  }
+  if(axis==='x') spinVel += dx * 0.00042;
+  if(axis==='y') pTarget  = clamp(pTarget + (lastY-e.clientY)*0.0026, 0, 1);
+  lastX=e.clientX; lastY=e.clientY;
+});
+const stop = ()=>{drag=false; axis=null;};
+canvas.addEventListener('pointerup', stop);
+canvas.addEventListener('pointercancel', stop);
+canvas.addEventListener('wheel', e=>{
+  e.preventDefault();
+  pTarget = clamp(pTarget + e.deltaY*0.0011, 0, 1);
+},{passive:false});
+addEventListener('keydown', e=>{
+  if(e.key==='ArrowUp')   { e.preventDefault(); pTarget=clamp(pTarget+.12,0,1); }
+  if(e.key==='ArrowDown') { e.preventDefault(); pTarget=clamp(pTarget-.12,0,1); }
+  if(e.key==='ArrowLeft')  spinVel -= .06;
+  if(e.key==='ArrowRight') spinVel += .06;
+  if(e.key==='End')  pTarget=1;
+  if(e.key==='Home') pTarget=0;
+});
+
+/* ============================================================
+   КАДР
+   ============================================================ */
+const camFrom = new THREE.Vector3(0, 0.0, 10.2);
+const camTo   = new THREE.Vector3(-0.33, 2.42, 1.82);
+const lookFrom= new THREE.Vector3(0, -1.55, 0);
+const lookTo  = new THREE.Vector3(-0.33, 2.42, 0);
+const tmp = new THREE.Vector3();
+
+/* ---- ЭКСПЕРИМЕНТ: режим шапки ---- */
+let docked = false;
+const DOCK_HEIGHT = 84;
+const camDock = new THREE.Vector3(DOCK_LOOK.x, DOCK_LOOK.y, 3.4);
+addEventListener('keydown', e=>{
+  if(e.key==='d' || e.key==='D'){ docked = !docked; resize(); }
+});
+
+function resize(){
+  const w = innerWidth, h = docked ? DOCK_HEIGHT : innerHeight;
+  canvas.style.height = docked ? DOCK_HEIGHT+'px' : '100%';
+  canvas.style.top = '0'; canvas.style.bottom = docked ? 'auto' : '0';
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+let last=performance.now(), frames=0, fpsT=0, fps=0;
+
+function frame(now){
+  const dt = Math.min((now-last)/1000, .05); last=now;
+  idleT += dt;
+
+  /* сглаживание прогресса и инерция вращения */
+  p += (pTarget - p) * Math.min(1, dt*7);
+  spin += spinVel;
+  spinVel *= Math.pow(0.92, dt*60);
+  /* при раскрытии подворот гасится — финальный кадр всегда одинаковый */
+  if(p > .35) spin *= Math.pow(0.965, dt*60);
+
+  const open = seg(p, .05, .55);
+  const zoom = seg(p, .45, 1);
+  const menu = seg(p, .88, 1);
+
+  if(docked){
+    bladeG.rotation.z = d2r(BLADE_OPEN);
+    razor.position.y = 0;
+    razor.rotation.x = 0;
+    razor.rotation.y = 0;
+    razor.rotation.z = DOCK_RAZOR_Z;
+    camera.position.copy(camDock);
+    camera.lookAt(DOCK_LOOK);
+    const dist = camera.position.distanceTo(DOCK_LOOK);
+    const fov  = fitFov(dist, DOCK_HALF.w, DOCK_HALF.h, camera.aspect, 1.05);
+    if(Math.abs(camera.fov - fov) > 0.02){ camera.fov = fov; camera.updateProjectionMatrix(); }
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+    return;
+  }
+
+  bladeG.rotation.z = d2r(lerp(BLADE_IDLE, BLADE_OPEN, open));
+
+  /* парение: две несовпадающие частоты, иначе читается как механизм */
+  const floatY = reduced ? 0 : (Math.sin(idleT*0.62)*0.085 + Math.sin(idleT*0.27)*0.045);
+  const tiltX  = reduced ? 0 : (Math.sin(idleT*0.41)*0.045 + Math.sin(idleT*0.19)*0.02);
+  const driftY = reduced ? 0 : Math.sin(idleT*0.23)*0.10;
+
+  razor.position.y = floatY * (1-zoom*0.7);
+  razor.rotation.x = tiltX  * (1-zoom);
+  razor.rotation.y = spin + driftY*(1-zoom);
+  razor.rotation.z = d2r(lerp(0, -HANDLE_DEG, zoom));  /* клинок встаёт вертикально */
+
+  camera.position.lerpVectors(camFrom, camTo, zoom);
+  camera.lookAt(tmp.lerpVectors(lookFrom, lookTo, zoom));
+
+  /* угол обзора подстраивается под текущий аспект экрана, чтобы бритва
+     не обрезалась по бокам на узких (портретных) экранах */
+  const halfW = lerp(IDLE_HALF.w, FINAL_HALF.w, zoom);
+  const halfH = lerp(IDLE_HALF.h, FINAL_HALF.h, zoom);
+  const dist  = camera.position.distanceTo(tmp);
+  const fov   = fitFov(dist, halfW, halfH, camera.aspect, FRAME_MARGIN);
+  if(Math.abs(camera.fov - fov) > 0.02){ camera.fov = fov; camera.updateProjectionMatrix(); }
+
+  /* меню привязано к спроецированной точке клинка */
+  if(menu > 0){
+    bladeMesh.updateWorldMatrix(true,false);
+    /* точка в середине полотна — по ней и выравниваем надписи */
+    tmp.set(0, -2.35, 0.08).applyMatrix4(bladeMesh.matrixWorld).project(camera);
+    const sx = (tmp.x*.5+.5)*innerWidth;
+    const wNav = innerWidth*0.28;
+    navEl.style.left    = (sx - wNav*0.42) + 'px';
+    navEl.style.width   = wNav + 'px';
+    navEl.style.opacity = 1;
+  } else navEl.style.opacity = 0;
+
+  links.forEach((a,i)=>{
+    const t = clamp((menu - i*.05)/(1 - i*.05), 0, 1);
+    a.style.opacity = t; a.style.transform = `translateX(${(1-t)*22}px)`;
+  });
+  navEl.style.pointerEvents = menu > .6 ? 'auto' : 'none';
+  hintEl.style.opacity = 1 - seg(p, 0, .12);
+
+  renderer.render(scene, camera);
+
+  frames++; fpsT += dt;
+  if(fpsT >= .5){ fps = Math.round(frames/fpsT); frames=0; fpsT=0; }
+  statEl.innerHTML = `${Math.round(p*100)}%<br>${fps} fps`;
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ---- служебные кнопки ---- */
+const bRed=document.getElementById('bRed'), bBlack=document.getElementById('bBlack');
+function setHandle(red){
+  handleMat.color.set(red ? 0xd81f26 : 0x121316);
+  handleMat.roughness = red ? .22 : .14;
+  bRed.setAttribute('aria-pressed', String(red));
+  bBlack.setAttribute('aria-pressed', String(!red));
+}
+bRed.onclick   = ()=>setHandle(true);
+bBlack.onclick = ()=>setHandle(false);
+document.getElementById('bReset').onclick = ()=> pTarget=0;
+document.getElementById('bEnd').onclick   = ()=> pTarget=1;
+
+/* доступ из консоли и из тестов */
+window.__scene = { get p(){return p}, set p(v){ p=pTarget=v; }, razor, camera };
+</script>
+</body>
+</html>

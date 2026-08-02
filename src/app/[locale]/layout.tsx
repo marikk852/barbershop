@@ -3,6 +3,7 @@ import { Bodoni_Moda, Barlow_Condensed } from "next/font/google";
 import { hasLocale, NextIntlClientProvider } from "next-intl";
 import { notFound } from "next/navigation";
 import { routing } from "@/i18n/routing";
+import { SiteScene } from "@/components/site-scene";
 import "../globals.css";
 
 // Корневой layout лежит под динамическим сегментом [locale] — так и
@@ -44,7 +45,10 @@ export default async function LocaleLayout({ children, params }: Props) {
   return (
     <html lang={locale} className={`${bodoni.variable} ${barlow.variable}`}>
       <body className="min-h-screen font-sans antialiased">
-        <NextIntlClientProvider>{children}</NextIntlClientProvider>
+        <NextIntlClientProvider>
+          <SiteScene />
+          {children}
+        </NextIntlClientProvider>
       </body>
     </html>
   );

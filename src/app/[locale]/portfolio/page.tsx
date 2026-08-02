@@ -2,7 +2,6 @@ import Image from "next/image";
 import { getLocale, getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
 import type { Locale } from "@/i18n/routing";
-import { SiteHeader } from "@/components/site-header";
 
 export default async function PortfolioPage() {
   const t = await getTranslations("Portfolio");
@@ -13,9 +12,7 @@ export default async function PortfolioPage() {
   });
 
   return (
-    <>
-    <SiteHeader />
-    <main className="mx-auto max-w-5xl px-6 py-16">
+    <main className="mx-auto max-w-5xl px-6 pb-16" style={{ paddingTop: "calc(var(--dock-h) + 2.5rem)" }}>
       <h1 className="font-serif text-3xl tracking-wide">{t("title")}</h1>
 
       <div className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -40,6 +37,5 @@ export default async function PortfolioPage() {
         })}
       </div>
     </main>
-    </>
   );
 }

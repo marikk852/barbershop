@@ -3,7 +3,11 @@
     "booking": "Programare la tuns",
     "bio": "Biografie",
     "price": "Listă de prețuri",
-    "portfolio": "Portofoliu"
+    "portfolio": "Portofoliu",
+    "bookingShort": "Programare",
+    "bioShort": "Biografie",
+    "priceShort": "Prețuri",
+    "portfolioShort": "Portofoliu"
   },
   "Home": {
     "title": "W Condrea Barber",

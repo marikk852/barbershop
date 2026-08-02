@@ -3,6 +3,12 @@
 :root {
   --background: #000000;
   --foreground: #f4f6f8;
+  /* Высота пристыкованной шапки-лезвия — общий источник правды для
+     SiteScene (канвас) и content-страниц (отступ сверху под неё). */
+  --dock-h: 76px;
+}
+@media (min-width: 640px) {
+  :root { --dock-h: 88px; }
 }
 
 @theme inline {
