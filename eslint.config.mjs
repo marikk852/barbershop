@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Не часть Next.js-приложения: статические HTML-прототипы и
+    // ванильный vendor-скрипт для них (Three.js), лежат вне src/.
+    "prototypes/**",
+    "assets/**",
+    "src/generated/**",
   ]),
 ]);
 

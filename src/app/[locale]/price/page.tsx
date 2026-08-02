@@ -1,6 +1,7 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
 import type { Locale } from "@/i18n/routing";
+import { SiteHeader } from "@/components/site-header";
 
 export default async function PricePage() {
   const t = await getTranslations("Price");
@@ -12,6 +13,8 @@ export default async function PricePage() {
   });
 
   return (
+    <>
+    <SiteHeader />
     <main className="mx-auto max-w-2xl px-6 py-16">
       <h1 className="font-serif text-3xl tracking-wide">{t("title")}</h1>
 
@@ -32,5 +35,6 @@ export default async function PricePage() {
         ))}
       </ul>
     </main>
+    </>
   );
 }

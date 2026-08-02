@@ -8,7 +8,10 @@
   "Home": {
     "title": "W Condrea Barber",
     "tagline": "Barber · Chișinău",
-    "cta": "Vezi lista de prețuri"
+    "cta": "Vezi lista de prețuri",
+    "hint": "Lateral — rotești · sus — deschizi",
+    "skip": "Omite",
+    "fallback": "Browserul nu suportă WebGL"
   },
   "Price": {
     "title": "Listă de prețuri",
