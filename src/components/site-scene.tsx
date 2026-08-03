@@ -421,10 +421,13 @@ export function SiteScene() {
       const PICK_SCALE = 0.25;
       const pickTarget = new THREE.WebGLRenderTarget(1, 1);
       const pixelBuf = new Uint8Array(4);
-      const labelEls = heroLinks.map((a) => ({
-        num: a.querySelector<HTMLSpanElement>(`.${styles.num}`),
-        lbl: a.querySelector<HTMLSpanElement>(`.${styles.lbl}`),
-      }));
+      // Красим ПОБУКВЕННО, а не весь лейбл разом — каждая буква реагирует
+      // на то, что конкретно под ней (одно слово может наполовину лежать
+      // на стали, наполовину на чёрном фоне).
+      const charEls = heroLinks.flatMap((a) => [
+        ...Array.from(a.querySelectorAll<HTMLSpanElement>(`.${styles.numChar}`)),
+        ...Array.from(a.querySelectorAll<HTMLSpanElement>(`.${styles.lblChar}`)),
+      ]);
       let colorSampleAcc = 0;
       const COLOR_SAMPLE_INTERVAL = 1 / 8; // ~8 замеров в секунду
 
@@ -439,6 +442,17 @@ export function SiteScene() {
       window.addEventListener("resize", resize);
       resize();
 
+      // Three.js применяет toneMapping/sRGB-гамму только к тому, что реально
+      // попадает на экран (канвас); произвольный WebGLRenderTarget получает
+      // "сырые" линейные значения — тот же самый видимый светлый пиксель
+      // читается из pickTarget заметно темнее, чем он выглядит на экране.
+      // Без этой поправки почти всё читалось бы как "тёмное".
+      function linearToSrgb8(v: number) {
+        const c = v / 255;
+        const s = c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+        return Math.max(0, Math.min(255, s * 255));
+      }
+
       function sampleLabelColors() {
         renderer.setRenderTarget(pickTarget);
         renderer.render(scene, camera);
@@ -446,9 +460,8 @@ export function SiteScene() {
 
         const pw = pickTarget.width;
         const ph = pickTarget.height;
-        labelEls.forEach(({ num, lbl }) => {
-          if (!lbl) return;
-          const r = lbl.getBoundingClientRect();
+        charEls.forEach((el) => {
+          const r = el.getBoundingClientRect();
           if (r.width === 0 && r.height === 0) return;
           // Нормированные координаты (доля ширины/высоты окна) — не зависят
           // от DPR и от того, что pickTarget меньше основного канваса.
@@ -458,10 +471,9 @@ export function SiteScene() {
           const py = Math.round((1 - nyTop) * ph); // WebGL — координата Y снизу вверх
           if (cx < 0 || cx >= pw || py < 0 || py >= ph) return;
           renderer.readRenderTargetPixels(pickTarget, cx, py, 1, 1, pixelBuf);
-          const lum = 0.299 * pixelBuf[0] + 0.587 * pixelBuf[1] + 0.114 * pixelBuf[2];
-          const color = lum > 130 ? "#111319" : "#ffffff";
-          lbl.style.color = color;
-          if (num) num.style.color = color;
+          const lum =
+            0.299 * linearToSrgb8(pixelBuf[0]) + 0.587 * linearToSrgb8(pixelBuf[1]) + 0.114 * linearToSrgb8(pixelBuf[2]);
+          el.style.color = lum > 130 ? "#111319" : "#ffffff";
         });
       }
 
@@ -660,8 +672,16 @@ export function SiteScene() {
       <nav ref={heroNavRef} className={styles.heroNav}>
         {NAV_ITEMS.map((item, i) => (
           <Link key={item.href} href={item.href} ref={(el) => { heroLinkRefs.current[i] = el; }}>
-            <span className={styles.num}>{item.num}</span>
-            <span className={styles.lbl}>{nav(item.key)}</span>
+            <span className={styles.num}>
+              {[...item.num].map((ch, ci) => (
+                <span key={ci} className={styles.numChar}>{ch}</span>
+              ))}
+            </span>
+            <span className={styles.lbl}>
+              {[...nav(item.key)].map((ch, ci) => (
+                <span key={ci} className={styles.lblChar}>{ch}</span>
+              ))}
+            </span>
           </Link>
         ))}
       </nav>
