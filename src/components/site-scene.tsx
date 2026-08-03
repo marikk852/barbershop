@@ -492,7 +492,11 @@ export function SiteScene() {
         heroLinks.forEach((a, i) => {
           const lt = clamp((heroMenu - i * 0.05) / (1 - i * 0.05), 0, 1);
           a.style.opacity = String(lt);
-          a.style.transform = `translateX(${(1 - lt) * 22}px)`;
+          // Как только появление закончилось — снимаем инлайновый transform
+          // полностью (а не выставляем translateX(0)): иначе он на каждом
+          // кадре перебивает CSS-hover капсулы (:hover задаёт translateX(4px),
+          // но инлайн-стиль всегда сильнее правил из таблицы стилей).
+          a.style.transform = lt > 0.999 ? "" : `translateX(${(1 - lt) * 22}px)`;
         });
         heroNavEl.style.pointerEvents = heroMenu > 0.6 ? "auto" : "none";
         if (isHero) {
