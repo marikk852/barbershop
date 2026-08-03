@@ -15,7 +15,6 @@ const NAV_ITEMS = [
 ] as const;
 
 const BRAND = "CONDREA";
-const SEEN_KEY = "ws-intro-seen";
 
 function isHomePathname(pathname: string) {
   if (pathname === "/") return true;
@@ -76,25 +75,19 @@ export function SiteScene() {
 
   // Решение "показывать ли героическое интро" принимается один раз,
   // синхронно, ДО первой отрисовки (useLayoutEffect) — чтобы не было
-  // вспышки "сначала открытая сцена, потом вдруг заставка". SSR-разметка
-  // по умолчанию рендерит уже открытое состояние (это подавляющее
-  // большинство визитов — прямые заходы и повторные посещения).
+  // вспышки "сначала открытая сцена, потом вдруг заставка". Интро (заставка
+  // + свайп) показывается на КАЖДОМ заходе на главную — не только на первый
+  // раз — таково явное требование: сайт должен каждый раз начинаться с
+  // анимации. SSR по умолчанию рендерит безопасный вариант без интро (не
+  // зная pathname), useLayoutEffect синхронно поправляет его ДО отрисовки
+  // кадра браузером.
   const [heroFirstVisit, setHeroFirstVisit] = useState(false);
   const [ready, setReady] = useState(false);
 
   useLayoutEffect(() => {
     // Осознанное исключение из "не вызывать setState в эффекте": решение
-    // "показывать ли героическое интро" зависит от localStorage/URL —
-    // источников, недоступных на сервере. SSR всегда рендерит безопасный
-    // умолчательный вариант (уже открытая сцена, без интро — так выглядит
-    // подавляющее большинство визитов); useLayoutEffect синхронно поправляет
-    // его ДО отрисовки кадра браузером для настоящих первых визитов на
-    // главную, поэтому вспышки "сначала сцена, потом интро" не возникает.
-    let seen: string | null = null;
-    try {
-      seen = localStorage.getItem(SEEN_KEY);
-    } catch {}
-    if (isHomePathname(window.location.pathname) && !seen) {
+    // зависит от window.location — источника, недоступного на сервере.
+    if (isHomePathname(window.location.pathname)) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setHeroFirstVisit(true);
     }
@@ -143,9 +136,6 @@ export function SiteScene() {
     }
     let splashDone = !isHero;
     function finishSplash() {
-      try {
-        localStorage.setItem(SEEN_KEY, String(Date.now()));
-      } catch {}
       splash?.classList.add(styles.splashOut);
       reveal();
       setTimeout(() => splash?.remove(), 950);
