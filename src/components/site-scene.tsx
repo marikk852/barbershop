@@ -141,10 +141,29 @@ export function SiteScene() {
       setTimeout(() => splash?.remove(), 950);
     }
 
+    // Пока клинок закрыт и ждёт свайпа, страница не должна скроллиться —
+    // иначе браузер параллельно с нашим жестом ещё и листает контент под
+    // сценой, и пользователь видит двигающийся ползунок скролла посреди
+    // интро. Снимается сразу как клинок раскрылся (см. ниже, p > 0.985)
+    // и при любом размонтировании (уход со страницы посреди интро).
+    const prevBodyOverflow = document.body.style.overflow;
+    let scrollLocked = false;
+    function lockScroll() {
+      if (scrollLocked) return;
+      scrollLocked = true;
+      document.body.style.overflow = "hidden";
+    }
+    function unlockScroll() {
+      if (!scrollLocked) return;
+      scrollLocked = false;
+      document.body.style.overflow = prevBodyOverflow;
+    }
+
     let introRaf = 0;
     const skipBtn = skipRef.current;
     let skipNow = () => {};
     if (isHero) {
+      lockScroll();
       buildMark(markMainRef.current, false);
       buildMark(markSweepRef.current, true);
       if (wordRef.current) {
@@ -412,9 +431,11 @@ export function SiteScene() {
         if (!reduced) autoSpin += dt * AUTO_SPIN_SPEED;
 
         // как только клинок полностью раскрыт — отпускаем перехват жестов
-        // с канваса (иначе он мешал бы прокручивать страницу под сценой)
+        // с канваса и разблокируем скролл страницы (иначе он мешал бы
+        // прокручивать страницу под сценой)
         if (isHero && p > 0.985 && canvas.classList.contains(styles.heroInteractive)) {
           canvas.classList.remove(styles.heroInteractive);
+          unlockScroll();
         }
 
         const open = seg(p, 0.05, 0.55);
@@ -516,6 +537,7 @@ export function SiteScene() {
       cancelAnimationFrame(introRaf);
       document.removeEventListener("keydown", onEscape);
       skipBtn?.removeEventListener("click", skipNow);
+      unlockScroll();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);

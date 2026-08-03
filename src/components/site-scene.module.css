@@ -25,6 +25,10 @@
 .heroInteractive {
   pointer-events: auto;
   cursor: grab;
+  /* Без этого браузер параллельно с нашим JS-жестом ещё и скроллит
+     страницу под пальцем — часть протяга "съедалась" скроллом вместо
+     открытия сцены. */
+  touch-action: none;
 }
 .heroInteractive:active {
   cursor: grabbing;
