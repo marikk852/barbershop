@@ -12,7 +12,7 @@ export default async function PricePage() {
   });
 
   return (
-    <main className="mx-auto max-w-2xl px-6 pb-16" style={{ paddingTop: "calc(var(--dock-h) + 2.5rem)" }}>
+    <main className="mx-auto max-w-2xl px-6 pb-16" style={{ paddingTop: "calc(var(--scene-h) + 2.5rem)" }}>
       <h1 className="font-serif text-3xl tracking-wide">{t("title")}</h1>
 
       <ul className="mt-10 divide-y divide-white/10">

@@ -12,7 +12,7 @@ export default async function PortfolioPage() {
   });
 
   return (
-    <main className="mx-auto max-w-5xl px-6 pb-16" style={{ paddingTop: "calc(var(--dock-h) + 2.5rem)" }}>
+    <main className="mx-auto max-w-5xl px-6 pb-16" style={{ paddingTop: "calc(var(--scene-h) + 2.5rem)" }}>
       <h1 className="font-serif text-3xl tracking-wide">{t("title")}</h1>
 
       <div className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3">

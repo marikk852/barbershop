@@ -10,7 +10,7 @@ export default async function BioPage() {
   const bio = locale === "ro" ? content?.bioRo : content?.bioRu;
 
   return (
-    <main className="mx-auto max-w-2xl px-6 pb-16" style={{ paddingTop: "calc(var(--dock-h) + 2.5rem)" }}>
+    <main className="mx-auto max-w-2xl px-6 pb-16" style={{ paddingTop: "calc(var(--scene-h) + 2.5rem)" }}>
       <h1 className="font-serif text-3xl tracking-wide">{t("title")}</h1>
       <p className="mt-8 text-lg leading-relaxed text-zinc-200">{bio}</p>
       {content?.address && (

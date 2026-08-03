@@ -3,11 +3,7 @@
     "booking": "Запись на стрижку",
     "bio": "Биография",
     "price": "Прайс-лист",
-    "portfolio": "Портфолио",
-    "bookingShort": "Запись",
-    "bioShort": "Биография",
-    "priceShort": "Прайс-лист",
-    "portfolioShort": "Портфолио"
+    "portfolio": "Портфолио"
   },
   "Home": {
     "title": "W Condrea Barber",

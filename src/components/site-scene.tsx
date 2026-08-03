@@ -76,8 +76,8 @@ export function SiteScene() {
 
   // Решение "показывать ли героическое интро" принимается один раз,
   // синхронно, ДО первой отрисовки (useLayoutEffect) — чтобы не было
-  // вспышки "сначала шапка, потом вдруг на всю высоту". SSR-разметка
-  // по умолчанию рендерит уже пристыкованное состояние (это подавляющее
+  // вспышки "сначала открытая сцена, потом вдруг заставка". SSR-разметка
+  // по умолчанию рендерит уже открытое состояние (это подавляющее
   // большинство визитов — прямые заходы и повторные посещения).
   const [heroFirstVisit, setHeroFirstVisit] = useState(false);
   const [ready, setReady] = useState(false);
@@ -86,10 +86,10 @@ export function SiteScene() {
     // Осознанное исключение из "не вызывать setState в эффекте": решение
     // "показывать ли героическое интро" зависит от localStorage/URL —
     // источников, недоступных на сервере. SSR всегда рендерит безопасный
-    // умолчательный вариант (пристыкованная шапка, без интро — так выглядит
+    // умолчательный вариант (уже открытая сцена, без интро — так выглядит
     // подавляющее большинство визитов); useLayoutEffect синхронно поправляет
     // его ДО отрисовки кадра браузером для настоящих первых визитов на
-    // главную, поэтому вспышки "сначала шапка, потом интро" не возникает.
+    // главную, поэтому вспышки "сначала сцена, потом интро" не возникает.
     let seen: string | null = null;
     try {
       seen = localStorage.getItem(SEEN_KEY);
@@ -108,27 +108,19 @@ export function SiteScene() {
   const markSweepRef = useRef<SVGSVGElement>(null);
   const wordRef = useRef<HTMLDivElement>(null);
   const heroNavRef = useRef<HTMLElement>(null);
-  const dockNavRef = useRef<HTMLElement>(null);
   const hintRef = useRef<HTMLDivElement>(null);
   const skipRef = useRef<HTMLButtonElement>(null);
   const fallbackRef = useRef<HTMLDivElement>(null);
   const heroLinkRefs = useRef<(HTMLAnchorElement | null)[]>([]);
-  const dockLinkRefs = useRef<(HTMLAnchorElement | null)[]>([]);
 
   useEffect(() => {
     if (!ready) return;
 
     const canvas = canvasRef.current!;
-    const wrap = wrapRef.current!;
     const splash = splashRef.current; // null, если !isHero — заставка не рендерится
-    const heroNavEl = heroNavRef.current; // null, если !isHero
-    const dockNavEl = dockNavRef.current!;
+    const heroNavEl = heroNavRef.current!;
     const hintEl = hintRef.current; // null, если !isHero
     const heroLinks = heroLinkRefs.current.filter((a): a is HTMLAnchorElement => !!a);
-    const dockLinks = dockLinkRefs.current.filter((a): a is HTMLAnchorElement => !!a);
-    const dockLblEls = dockLinks.map((a) => a.querySelector<HTMLSpanElement>(`.${styles.dockLbl}`));
-    const NAV_FULL = NAV_ITEMS.map((item) => nav(item.key));
-    const NAV_SHORT = NAV_ITEMS.map((item) => nav(`${item.key}Short`));
 
     let sceneReady = false;
     const isHero = heroFirstVisit;
@@ -325,14 +317,6 @@ export function SiteScene() {
       razor.rotation.z = d2r(-HANDLE_DEG);
       const FINAL_HALF = measureHalf(new THREE.Vector3(-0.33, 2.42, 0));
 
-      // Пристыкованная шапка: та же прямая линия клинок+рукоять, но
-      // довёрнутая ещё на 90° — из вертикали в горизонталь. Точка и
-      // габариты измерены реальным Box3 (см. prototypes/scene-docked.html).
-      const DOCK_RAZOR_Z = d2r(-HANDLE_DEG) + Math.PI / 2;
-      razor.rotation.z = DOCK_RAZOR_Z;
-      const DOCK_LOOK = new THREE.Vector3(0.086, -0.101, 0);
-      const DOCK_HALF = measureHalf(DOCK_LOOK);
-
       const FRAME_MARGIN = 1.18;
       function clampFov(deg: number) {
         return Math.min(58, Math.max(18, deg));
@@ -345,14 +329,17 @@ export function SiteScene() {
       }
 
       // ---------- состояние ----------
-      // p: 0 (закрыта) → 1 (открыта, вертикальный финал) — только в hero.
-      // dock: 0 (вертикальный финал) → 1 (пристыкованная горизонтальная шапка).
+      // p: 0 (закрыта) → 1 (открыта, вертикальный финал) — только в hero;
+      // на остальных страницах/визитах сцена уже открыта с самого начала.
+      // Клинок больше никуда не "стыкуется" — открытая поза постоянна.
       let p = isHero ? 0 : 1, pTarget = isHero ? 0 : 1;
-      let dock = isHero ? 0 : 1, dockTarget = isHero ? 0 : 1;
-      let wasCompact: boolean | null = null;
       let spin = 0, spinVel = 0;
+      let autoSpin = 0;
       let idleT = 0;
       const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      // Медленное постоянное вращение в пассивном состоянии — "продуктовая
+      // витрина", а не статичная картинка.
+      const AUTO_SPIN_SPEED = 0.055;
 
       const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
       const lerp = (a: number, b: number, tt: number) => a + (b - a) * tt;
@@ -361,9 +348,9 @@ export function SiteScene() {
         return tt * tt * (3 - 2 * tt);
       };
 
-      // ---------- жесты (активны только в hero, до пристыковки) ----------
+      // ---------- жесты (только в hero, пока клинок не раскрыт до конца) ----------
       let drag = false, axis: "x" | "y" | null = null, lastX = 0, lastY = 0, startX = 0, startY = 0;
-      const gesturesLive = () => isHero && dockTarget < 1;
+      const gesturesLive = () => isHero && pTarget < 1;
       const onPointerDown = (e: PointerEvent) => {
         if (!gesturesLive()) return;
         drag = true;
@@ -404,17 +391,11 @@ export function SiteScene() {
       const camTo = new THREE.Vector3(-0.33, 2.42, 1.82);
       const lookFrom = new THREE.Vector3(0, -1.55, 0);
       const lookTo = new THREE.Vector3(-0.33, 2.42, 0);
-      const camDock = new THREE.Vector3(DOCK_LOOK.x, DOCK_LOOK.y, 3.15);
       const tmp = new THREE.Vector3();
-      const tmpA = new THREE.Vector3();
-      const tmpB = new THREE.Vector3();
-
-      const DOCK_H_CSS = getComputedStyle(document.documentElement).getPropertyValue("--dock-h").trim() || "76px";
-      const dockPx = parseFloat(DOCK_H_CSS) || 76;
 
       function resize() {
         const w = window.innerWidth;
-        const h = dock > 0.5 ? dockPx : window.innerHeight;
+        const h = window.innerHeight;
         renderer.setSize(w, h, false);
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
@@ -431,156 +412,71 @@ export function SiteScene() {
         idleT += dt;
 
         p += (pTarget - p) * Math.min(1, dt * 7);
-        dock += (dockTarget - dock) * Math.min(1, dt * 3.2);
         spin += spinVel;
         spinVel *= Math.pow(0.92, dt * 60);
         if (p > 0.35) spin *= Math.pow(0.965, dt * 60);
+        if (!reduced) autoSpin += dt * AUTO_SPIN_SPEED;
 
-        // как только клинок полностью раскрыт — запускаем стыковку в шапку
-        if (isHero && p > 0.985 && dockTarget < 1) {
-          dockTarget = 1;
-          wrap.classList.remove(styles.glWrapHero);
-          wrap.classList.add(styles.glWrapDocked);
+        // как только клинок полностью раскрыт — отпускаем перехват жестов
+        // с канваса (иначе он мешал бы прокручивать страницу под сценой)
+        if (isHero && p > 0.985 && canvas.classList.contains(styles.heroInteractive)) {
           canvas.classList.remove(styles.heroInteractive);
         }
 
         const open = seg(p, 0.05, 0.55);
         const zoom = seg(p, 0.45, 1);
-        const heroMenu = seg(p, 0.88, 1) * (1 - seg(dock, 0, 0.25));
-        const dockMenu = seg(dock, 0.55, 1);
+        const heroMenu = seg(p, 0.88, 1);
 
         bladeG.rotation.z = d2r(lerp(BLADE_IDLE, BLADE_OPEN, open));
 
-        const floatY = reduced ? 0 : Math.sin(idleT * 0.62) * 0.085 + Math.sin(idleT * 0.27) * 0.045;
-        const tiltX = reduced ? 0 : Math.sin(idleT * 0.41) * 0.045 + Math.sin(idleT * 0.19) * 0.02;
-        const driftY = reduced ? 0 : Math.sin(idleT * 0.23) * 0.1;
-        const heroAmount = 1 - zoom * 0.7 - dock * 0.3;
+        // Парение и медленное вращение — только пока клинок ЗАКРЫТ и ждёт
+        // жеста (пассивное состояние "до сцены"); как только начал
+        // открываться, оба эффекта полностью гаснут к (1 - zoom) = 0.
+        const floatY = reduced ? 0 : Math.sin(idleT * 0.85) * 0.085 + Math.sin(idleT * 0.37) * 0.045;
+        const tiltX = reduced ? 0 : Math.sin(idleT * 0.56) * 0.045 + Math.sin(idleT * 0.26) * 0.02;
+        const driftY = reduced ? 0 : Math.sin(idleT * 0.31) * 0.1;
 
-        razor.position.y = floatY * Math.max(0, heroAmount);
+        razor.position.y = floatY * (1 - zoom);
         razor.rotation.x = tiltX * (1 - zoom);
-        razor.rotation.y = spin + driftY * (1 - zoom) * (1 - dock);
+        razor.rotation.y = spin + (autoSpin + driftY) * (1 - zoom);
 
         const vertZ = lerp(0, -HANDLE_DEG, zoom);
-        razor.rotation.z = d2r(lerp(vertZ, THREE.MathUtils.radToDeg(DOCK_RAZOR_Z), dock));
+        razor.rotation.z = d2r(vertZ);
 
-        camera.position.lerpVectors(tmpA.lerpVectors(camFrom, camTo, zoom), camDock, dock);
-        const lookPoint = tmpB.lerpVectors(tmp.lerpVectors(lookFrom, lookTo, zoom), DOCK_LOOK, dock);
+        camera.position.lerpVectors(camFrom, camTo, zoom);
+        const lookPoint = tmp.lerpVectors(lookFrom, lookTo, zoom);
         camera.lookAt(lookPoint);
 
-        const halfW = lerp(lerp(IDLE_HALF.w, FINAL_HALF.w, zoom), DOCK_HALF.w, dock);
-        const halfH = lerp(lerp(IDLE_HALF.h, FINAL_HALF.h, zoom), DOCK_HALF.h, dock);
-        const margin = lerp(FRAME_MARGIN, 1.1, dock);
+        const halfW = lerp(IDLE_HALF.w, FINAL_HALF.w, zoom);
+        const halfH = lerp(IDLE_HALF.h, FINAL_HALF.h, zoom);
         const dist = camera.position.distanceTo(lookPoint);
-        const fov = fitFov(dist, halfW, halfH, camera.aspect, margin);
+        const fov = fitFov(dist, halfW, halfH, camera.aspect, FRAME_MARGIN);
         if (Math.abs(camera.fov - fov) > 0.02) {
           camera.fov = fov;
           camera.updateProjectionMatrix();
         }
 
-        // резервируем высоту канваса под целевой режим ДО того как dock
-        // окончательно доедет до 0/1 — иначе camera.aspect на миг рассинхронится
-        // с реальной высотой контейнера в момент CSS-перехода
-        const wantDockPx = dockTarget > 0.5;
-        const curH = canvas.height / DPR;
-        if (wantDockPx && Math.abs(curH - dockPx) > 1) resize();
-        if (!wantDockPx && Math.abs(curH - window.innerHeight) > 1) resize();
-
-        // ---------- меню hero (вертикальное, на клинке) ----------
-        // heroNavEl/hintEl существуют в DOM только пока isHero — на любой
-        // другой странице/визите их просто нет (не отрендерены), и весь
-        // этот блок для них бессмысленен (heroMenu и так всегда 0).
-        if (isHero) {
-          if (heroMenu > 0) {
-            bladeMesh.updateWorldMatrix(true, false);
-            tmp.set(0, -2.35, 0.08).applyMatrix4(bladeMesh.matrixWorld).project(camera);
-            const sx = (tmp.x * 0.5 + 0.5) * window.innerWidth;
-            const wNav = window.innerWidth * 0.28;
-            heroNavEl!.style.left = sx - wNav * 0.42 + "px";
-            heroNavEl!.style.width = wNav + "px";
-            heroNavEl!.style.opacity = "1";
-          } else {
-            heroNavEl!.style.opacity = "0";
-          }
-          heroLinks.forEach((a, i) => {
-            const lt = clamp((heroMenu - i * 0.05) / (1 - i * 0.05), 0, 1);
-            a.style.opacity = String(lt);
-            a.style.transform = `translateX(${(1 - lt) * 22}px)`;
-          });
-          heroNavEl!.style.pointerEvents = heroMenu > 0.6 ? "auto" : "none";
-          hintEl!.style.opacity = String((1 - seg(p, 0, 0.12)) * (1 - dock));
-        }
-
-        // ---------- меню шапки (горизонтальное, вдоль клинка и рукояти) ----------
-        if (dockMenu > 0) {
-          // На узких экранах полные фразы ("Запись на стрижку") не влезают
-          // между соседними точками на лезвии — переключаемся на короткие
-          // варианты подписи (см. Nav.*Short в messages/*.json).
-          const compact = window.innerWidth < 640;
-          if (compact !== wasCompact) {
-            const labels = compact ? NAV_SHORT : NAV_FULL;
-            dockLblEls.forEach((el, i) => {
-              if (el) el.textContent = labels[i];
-            });
-            wasCompact = compact;
-          }
-
-          const project = (mesh: THREE.Object3D, ly: number) => {
-            mesh.updateWorldMatrix(true, false);
-            tmp.set(0, ly, 0.09).applyMatrix4(mesh.matrixWorld).project(camera);
-            return (tmp.x * 0.5 + 0.5) * window.innerWidth;
-          };
-          const anchors = [
-            project(bladeMesh, -3.35),
-            project(bladeMesh, -0.55),
-            project(scaleA, -0.45),
-            project(scaleA, -3.35),
-          ];
-          // Проекция точек с лезвия — не гарантия читаемого расстояния между
-          // подписями на любой ширине экрана: на узких телефонах точки могут
-          // сойтись ближе, чем ширина текста между ними, а крайние подписи —
-          // вылезти за край вьюпорта своей собственной шириной (не только
-          // центром-анкором). Досдвигаем анкоры на минимальный зазор и
-          // вписываем весь ряд в экран с учётом фактической ширины подписей,
-          // не трогая саму 3D-сцену.
-          const pad = 10;
-          const n = anchors.length;
-          const last = n - 1;
-          const halfW = dockLblEls.map((el) => (el ? el.offsetWidth / 2 : 40));
-          const minGap = Math.min(96, window.innerWidth * 0.24);
-          for (let i = 1; i < n; i++) {
-            if (anchors[i] < anchors[i - 1] + minGap) anchors[i] = anchors[i - 1] + minGap;
-          }
-          const leftEdge = pad + halfW[0];
-          const rightEdge = window.innerWidth - pad - halfW[last];
-          const available = rightEdge - leftEdge;
-          const span = anchors[last] - anchors[0];
-          if (available <= 0) {
-            // экрану не хватает места даже впритык — просто ставим всё по центру
-            for (let i = 0; i < n; i++) anchors[i] = window.innerWidth / 2;
-          } else if (span > available) {
-            // даже минимальный зазор не влезает целиком — сжимаем и раскладываем поровну
-            for (let i = 0; i < n; i++) anchors[i] = leftEdge + (available * i) / last;
-          } else {
-            // сдвигаем весь ряд как единое целое так, чтобы упереться сразу в оба
-            // края (а не поочерёдно — иначе исправление одного края ломает другой)
-            const minShift = leftEdge - anchors[0];
-            const maxShift = rightEdge - anchors[last];
-            const shift = Math.min(maxShift, Math.max(minShift, 0));
-            for (let i = 0; i < n; i++) anchors[i] += shift;
-          }
-          dockLinks.forEach((a, i) => {
-            a.style.left = anchors[i] + "px";
-          });
-          dockNavEl.style.opacity = String(dockMenu);
-          dockNavEl.classList.toggle(styles.dockNavOn, dockMenu > 0.5);
+        // ---------- меню на клинке (вертикальное, постоянное) ----------
+        if (heroMenu > 0) {
+          bladeMesh.updateWorldMatrix(true, false);
+          tmp.set(0, -2.35, 0.08).applyMatrix4(bladeMesh.matrixWorld).project(camera);
+          const sx = (tmp.x * 0.5 + 0.5) * window.innerWidth;
+          const wNav = window.innerWidth * 0.28;
+          heroNavEl.style.left = sx - wNav * 0.42 + "px";
+          heroNavEl.style.width = wNav + "px";
+          heroNavEl.style.opacity = "1";
         } else {
-          dockNavEl.style.opacity = "0";
+          heroNavEl.style.opacity = "0";
         }
-        dockLinks.forEach((a, i) => {
-          const lt = clamp(dockMenu - i * 0.06, 0, 1);
+        heroLinks.forEach((a, i) => {
+          const lt = clamp((heroMenu - i * 0.05) / (1 - i * 0.05), 0, 1);
           a.style.opacity = String(lt);
-          a.style.transform = `translateY(${(1 - lt) * -6}px)`;
+          a.style.transform = `translateX(${(1 - lt) * 22}px)`;
         });
+        heroNavEl.style.pointerEvents = heroMenu > 0.6 ? "auto" : "none";
+        if (isHero) {
+          hintEl!.style.opacity = String(1 - seg(p, 0, 0.12));
+        }
 
         renderer.render(scene, camera);
         sceneReady = true;
@@ -626,10 +522,7 @@ export function SiteScene() {
 
   return (
     <>
-      <div
-        ref={wrapRef}
-        className={`${styles.glWrap} ${heroFirstVisit ? styles.glWrapHero : styles.glWrapDocked}`}
-      >
+      <div ref={wrapRef} className={styles.glWrap}>
         <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
           <defs>
             <linearGradient id="swg1" gradientUnits="userSpaceOnUse" x1="336" y1="353" x2="456" y2="887">
@@ -678,16 +571,14 @@ export function SiteScene() {
         </div>
       )}
 
-      {heroFirstVisit && (
-        <nav ref={heroNavRef} className={styles.heroNav}>
-          {NAV_ITEMS.map((item, i) => (
-            <Link key={item.href} href={item.href} ref={(el) => { heroLinkRefs.current[i] = el; }}>
-              <span className={styles.num}>{item.num}</span>
-              <span className={styles.lbl}>{nav(item.key)}</span>
-            </Link>
-          ))}
-        </nav>
-      )}
+      <nav ref={heroNavRef} className={styles.heroNav}>
+        {NAV_ITEMS.map((item, i) => (
+          <Link key={item.href} href={item.href} ref={(el) => { heroLinkRefs.current[i] = el; }}>
+            <span className={styles.num}>{item.num}</span>
+            <span className={styles.lbl}>{nav(item.key)}</span>
+          </Link>
+        ))}
+      </nav>
 
       {heroFirstVisit && (
         <div ref={hintRef} className={styles.hint}>
@@ -698,22 +589,6 @@ export function SiteScene() {
           <span className={`${styles.bar} ${styles.barR}`} />
         </div>
       )}
-
-      <div className={styles.dockedBar}>
-        <nav ref={dockNavRef} className={styles.dockNav}>
-          {NAV_ITEMS.map((item, i) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              ref={(el) => { dockLinkRefs.current[i] = el; }}
-              style={{ position: "absolute", transform: "translateX(-50%)" }}
-            >
-              <span className={styles.dockNumRow}>{item.num}</span>
-              <span className={styles.dockLbl}>{nav(item.key)}</span>
-            </Link>
-          ))}
-        </nav>
-      </div>
 
       <div ref={fallbackRef} className={styles.fallback} style={{ display: "none" }}>
         {t("fallback")}
