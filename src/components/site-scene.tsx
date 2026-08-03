@@ -473,7 +473,12 @@ export function SiteScene() {
           renderer.readRenderTargetPixels(pickTarget, cx, py, 1, 1, pixelBuf);
           const lum =
             0.299 * linearToSrgb8(pixelBuf[0]) + 0.587 * linearToSrgb8(pixelBuf[1]) + 0.114 * linearToSrgb8(pixelBuf[2]);
-          el.style.color = lum > 130 ? "#111319" : "#ffffff";
+          // Порог занижен специально: клинок затенён градиентом (у первого
+          // пункта меню, ближе к кончику, сталь заметно темнее, чем ниже
+          // по рукояти) — даже самая тёмная часть стали (~120 sRGB) всё
+          // равно намного светлее истинно чёрного фона (~0-20), так что
+          // порог 55 уверенно разделяет их с запасом на обе стороны.
+          el.style.color = lum > 55 ? "#111319" : "#ffffff";
         });
       }
 
@@ -543,8 +548,15 @@ export function SiteScene() {
           // сверху — чтобы не расползалось на весь широкий десктоп-экран.
           const wNav = clamp(window.innerWidth * 0.42, 230, 380);
           const pad = 16;
-          // Сдвиг меню левее на 30% его собственной ширины.
-          const navLeft = clamp(sx - wNav * 0.42 - wNav * 0.3, pad, window.innerWidth - wNav - pad);
+          // Сдвиг меню левее на 30% его собственной ширины — применяем
+          // ПОСЛЕ вписывания в экран, а не до: если применить до, на узких
+          // экранах якорь (sx) часто настолько близко к правому краю, что
+          // ограничение "не вылезай вправо" полностью съедает сдвиг влево
+          // (именно так и было на мобильном — 30% считались, но тут же
+          // перекрывались этим же clamp'ом). Сдвигаем уже вписанную позицию,
+          // ограничивая только слева, чтобы не улететь за левый край.
+          const fitted = clamp(sx - wNav * 0.42, pad, window.innerWidth - wNav - pad);
+          const navLeft = Math.max(pad, fitted - wNav * 0.3);
           heroNavEl.style.left = navLeft + "px";
           heroNavEl.style.width = wNav + "px";
           heroNavEl.style.opacity = "1";
