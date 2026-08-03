@@ -357,7 +357,11 @@ export function SiteScene() {
           if (Math.max(tx, ty) > 7) axis = tx > ty ? "x" : "y";
         }
         if (axis === "x") spinVel += dx * 0.00042;
-        if (axis === "y") pTarget = clamp(pTarget + (lastY - e.clientY) * 0.0026, 0, 1);
+        // 0.0026 требовало ~385px суммарного протяга, чтобы раскрыть до
+        // конца — на телефоне обычный свайп короче, и не хватало одного
+        // жеста. Подняли чувствительность почти втрое: полного открытия
+        // теперь хватает на один нормальный свайп.
+        if (axis === "y") pTarget = clamp(pTarget + (lastY - e.clientY) * 0.007, 0, 1);
         lastX = e.clientX;
         lastY = e.clientY;
       };
@@ -451,8 +455,14 @@ export function SiteScene() {
           bladeMesh.updateWorldMatrix(true, false);
           tmp.set(0, -2.35, 0.08).applyMatrix4(bladeMesh.matrixWorld).project(camera);
           const sx = (tmp.x * 0.5 + 0.5) * window.innerWidth;
-          const wNav = window.innerWidth * 0.28;
-          heroNavEl.style.left = sx - wNav * 0.42 + "px";
+          // 28% ширины экрана нормально смотрится на десктопе (~360px на
+          // 1280px), но на телефоне (390px) даёт всего ~109px — подписи
+          // ломаются на каждом слове. Снизу зажимаем разумным минимумом,
+          // сверху — чтобы не расползалось на весь широкий десктоп-экран.
+          const wNav = clamp(window.innerWidth * 0.42, 230, 380);
+          const pad = 16;
+          const navLeft = clamp(sx - wNav * 0.42, pad, window.innerWidth - wNav - pad);
+          heroNavEl.style.left = navLeft + "px";
           heroNavEl.style.width = wNav + "px";
           heroNavEl.style.opacity = "1";
         } else {
