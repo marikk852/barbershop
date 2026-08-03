@@ -72,7 +72,6 @@
   width: fit-content;
   padding: 12px 22px;
   border-radius: 999px;
-  isolation: isolate;
   opacity: 0;
   background: rgba(255, 255, 255, 0.025);
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -128,14 +127,21 @@
 .heroNav a:focus-visible {
   outline: none;
 }
+/* Текст "чёрно-белый по фону": ПЫТАЛИСЬ через mix-blend-mode:difference,
+   но position:fixed на .heroNav (обязателен — меню не должно уезжать при
+   скролле) всегда создаёт свой стекинг-контекст и блокирует blend против
+   канваса-соседа (проверено отдельным тестовым файлом). Поэтому цвет
+   выставляется из JS (site-scene.tsx) — читаем реальный пиксель канваса
+   под каждым лейблом (gl.readPixels) и переключаем чёрный/белый по его
+   яркости. Цвет ниже — просто safe-дефолт до первого замера. */
 .num {
   position: relative;
   z-index: 3;
   flex: none;
   font-size: 12px;
   letter-spacing: 0.28em;
-  color: #ffb0a8;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  color: #fff;
+  transition: color 0.3s ease;
   font-variant-numeric: tabular-nums;
 }
 .lbl {
@@ -146,8 +152,9 @@
   font-size: clamp(16px, 2.1vw, 22px);
   letter-spacing: 0.01em;
   color: #fff;
+  transition: color 0.3s ease;
   line-height: 1.05;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  mix-blend-mode: difference;
 }
 
 .hint {

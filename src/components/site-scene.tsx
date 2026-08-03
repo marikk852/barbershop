@@ -416,6 +416,39 @@ export function SiteScene() {
       window.addEventListener("resize", resize);
       resize();
 
+      // ---------- чёрно-белый текст меню по фону под ним ----------
+      // mix-blend-mode здесь не работает (см. комментарий в CSS-модуле про
+      // position:fixed и стекинг-контексты), поэтому читаем реальный пиксель
+      // канваса под каждым лейблом и переключаем цвет вручную. gl.readPixels
+      // — синхронный запрос к GPU, поэтому не чаще нескольких раз в секунду.
+      const glCtx = renderer.getContext();
+      const pixelBuf = new Uint8Array(4);
+      const labelEls = heroLinks.map((a) => ({
+        num: a.querySelector<HTMLSpanElement>(`.${styles.num}`),
+        lbl: a.querySelector<HTMLSpanElement>(`.${styles.lbl}`),
+      }));
+      let colorSampleAcc = 0;
+      const COLOR_SAMPLE_INTERVAL = 1 / 8; // ~8 замеров в секунду
+
+      function sampleLabelColors() {
+        const canvasH = canvas.height;
+        const canvasW = canvas.width;
+        labelEls.forEach(({ num, lbl }) => {
+          if (!lbl) return;
+          const r = lbl.getBoundingClientRect();
+          if (r.width === 0 && r.height === 0) return;
+          const cx = Math.round((r.left + r.width / 2) * DPR);
+          const cyTop = Math.round((r.top + r.height / 2) * DPR);
+          const py = canvasH - cyTop; // WebGL — координата Y снизу вверх
+          if (cx < 0 || cx >= canvasW || py < 0 || py >= canvasH) return;
+          glCtx.readPixels(cx, py, 1, 1, glCtx.RGBA, glCtx.UNSIGNED_BYTE, pixelBuf);
+          const lum = 0.299 * pixelBuf[0] + 0.587 * pixelBuf[1] + 0.114 * pixelBuf[2];
+          const color = lum > 130 ? "#111319" : "#ffffff";
+          lbl.style.color = color;
+          if (num) num.style.color = color;
+        });
+      }
+
       let last = performance.now();
       let rafId = 0;
 
@@ -482,7 +515,8 @@ export function SiteScene() {
           // сверху — чтобы не расползалось на весь широкий десктоп-экран.
           const wNav = clamp(window.innerWidth * 0.42, 230, 380);
           const pad = 16;
-          const navLeft = clamp(sx - wNav * 0.42, pad, window.innerWidth - wNav - pad);
+          // Сдвиг меню левее на 30% его собственной ширины.
+          const navLeft = clamp(sx - wNav * 0.42 - wNav * 0.3, pad, window.innerWidth - wNav - pad);
           heroNavEl.style.left = navLeft + "px";
           heroNavEl.style.width = wNav + "px";
           heroNavEl.style.opacity = "1";
@@ -504,6 +538,15 @@ export function SiteScene() {
         }
 
         renderer.render(scene, camera);
+
+        if (heroMenu > 0) {
+          colorSampleAcc += dt;
+          if (colorSampleAcc >= COLOR_SAMPLE_INTERVAL) {
+            colorSampleAcc = 0;
+            sampleLabelColors();
+          }
+        }
+
         sceneReady = true;
         rafId = requestAnimationFrame(frame);
       }
