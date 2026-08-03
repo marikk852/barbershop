@@ -43,7 +43,16 @@ export default async function LocaleLayout({ children, params }: Props) {
   }
 
   return (
-    <html lang={locale} className={`${bodoni.variable} ${barlow.variable}`}>
+    <html
+      lang={locale}
+      className={`${bodoni.variable} ${barlow.variable}`}
+      // Браузерные расширения (кошельки типа Bybit и т.п.) дописывают свои
+      // data-атрибуты в <html> ДО того, как React гидратируется — это не
+      // баг сайта, но React честно предупреждает о рассинхронизации.
+      // suppressHydrationWarning — официальный паттерн React именно для
+      // этого случая (см. https://react.dev/link/hydration-mismatch).
+      suppressHydrationWarning
+    >
       <body className="min-h-screen font-sans antialiased">
         <NextIntlClientProvider>
           <SiteScene />
