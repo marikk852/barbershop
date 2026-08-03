@@ -510,16 +510,21 @@ export function SiteScene() {
 
         bladeG.rotation.z = d2r(lerp(BLADE_IDLE, BLADE_OPEN, open));
 
-        // Парение и медленное вращение — только пока клинок ЗАКРЫТ и ждёт
-        // жеста (пассивное состояние "до сцены"); как только начал
-        // открываться, оба эффекта полностью гаснут к (1 - zoom) = 0.
+        // Парение и покачивание — только пока клинок ЗАКРЫТ и ждёт жеста
+        // (пассивное состояние "до сцены"); как только начал открываться,
+        // оба эффекта гаснут к (1 - zoom) = 0. Медленное вращение (autoSpin)
+        // — наоборот: тут не гаснет, а появляется ПОСЛЕ того, как меню
+        // полностью показано (heroMenu → 1), и продолжается постоянно на
+        // любой странице — клинок остаётся "живым" не только в момент
+        // ожидания свайпа, но и всё время, пока служит шапкой сайта.
         const floatY = reduced ? 0 : Math.sin(idleT * 0.85) * 0.085 + Math.sin(idleT * 0.37) * 0.045;
         const tiltX = reduced ? 0 : Math.sin(idleT * 0.56) * 0.045 + Math.sin(idleT * 0.26) * 0.02;
         const driftY = reduced ? 0 : Math.sin(idleT * 0.31) * 0.1;
+        const spinAmount = Math.max(1 - zoom, heroMenu);
 
         razor.position.y = floatY * (1 - zoom);
         razor.rotation.x = tiltX * (1 - zoom);
-        razor.rotation.y = spin + (autoSpin + driftY) * (1 - zoom);
+        razor.rotation.y = spin + autoSpin * spinAmount + driftY * (1 - zoom);
 
         const vertZ = lerp(0, -HANDLE_DEG, zoom);
         razor.rotation.z = d2r(vertZ);
