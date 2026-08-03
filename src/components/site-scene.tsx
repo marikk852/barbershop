@@ -406,22 +406,20 @@ export function SiteScene() {
       const lookTo = new THREE.Vector3(-0.33, 2.42, 0);
       const tmp = new THREE.Vector3();
 
-      function resize() {
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        renderer.setSize(w, h, false);
-        camera.aspect = w / h;
-        camera.updateProjectionMatrix();
-      }
-      window.addEventListener("resize", resize);
-      resize();
-
       // ---------- чёрно-белый текст меню по фону под ним ----------
       // mix-blend-mode здесь не работает (см. комментарий в CSS-модуле про
       // position:fixed и стекинг-контексты), поэтому читаем реальный пиксель
-      // канваса под каждым лейблом и переключаем цвет вручную. gl.readPixels
-      // — синхронный запрос к GPU, поэтому не чаще нескольких раз в секунду.
-      const glCtx = renderer.getContext();
+      // сцены под каждым лейблом и переключаем цвет вручную. Читать напрямую
+      // из основного канваса (gl.readPixels) нельзя — рендерер создан с
+      // antialias:true, дефолтный буфer мультисемплирован, и синхронное
+      // чтение из него до имплицитного резолва отдаёт нули/мусор в реальных
+      // браузерах с настоящим GPU (в headless software-рендере это случайно
+      // "работало", поэтому баг не был виден в тестах). Поэтому рендерим
+      // сцену второй раз в отдельный НЕ мультисемплированный offscreen-таргет
+      // уменьшенного размера специально для замера — дороже одного кадра, но
+      // происходит лишь несколько раз в секунду, а не каждый кадр.
+      const PICK_SCALE = 0.25;
+      const pickTarget = new THREE.WebGLRenderTarget(1, 1);
       const pixelBuf = new Uint8Array(4);
       const labelEls = heroLinks.map((a) => ({
         num: a.querySelector<HTMLSpanElement>(`.${styles.num}`),
@@ -430,18 +428,36 @@ export function SiteScene() {
       let colorSampleAcc = 0;
       const COLOR_SAMPLE_INTERVAL = 1 / 8; // ~8 замеров в секунду
 
+      function resize() {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        renderer.setSize(w, h, false);
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        pickTarget.setSize(Math.max(1, Math.round(w * PICK_SCALE)), Math.max(1, Math.round(h * PICK_SCALE)));
+      }
+      window.addEventListener("resize", resize);
+      resize();
+
       function sampleLabelColors() {
-        const canvasH = canvas.height;
-        const canvasW = canvas.width;
+        renderer.setRenderTarget(pickTarget);
+        renderer.render(scene, camera);
+        renderer.setRenderTarget(null);
+
+        const pw = pickTarget.width;
+        const ph = pickTarget.height;
         labelEls.forEach(({ num, lbl }) => {
           if (!lbl) return;
           const r = lbl.getBoundingClientRect();
           if (r.width === 0 && r.height === 0) return;
-          const cx = Math.round((r.left + r.width / 2) * DPR);
-          const cyTop = Math.round((r.top + r.height / 2) * DPR);
-          const py = canvasH - cyTop; // WebGL — координата Y снизу вверх
-          if (cx < 0 || cx >= canvasW || py < 0 || py >= canvasH) return;
-          glCtx.readPixels(cx, py, 1, 1, glCtx.RGBA, glCtx.UNSIGNED_BYTE, pixelBuf);
+          // Нормированные координаты (доля ширины/высоты окна) — не зависят
+          // от DPR и от того, что pickTarget меньше основного канваса.
+          const nx = (r.left + r.width / 2) / window.innerWidth;
+          const nyTop = (r.top + r.height / 2) / window.innerHeight;
+          const cx = Math.round(nx * pw);
+          const py = Math.round((1 - nyTop) * ph); // WebGL — координата Y снизу вверх
+          if (cx < 0 || cx >= pw || py < 0 || py >= ph) return;
+          renderer.readRenderTargetPixels(pickTarget, cx, py, 1, 1, pixelBuf);
           const lum = 0.299 * pixelBuf[0] + 0.587 * pixelBuf[1] + 0.114 * pixelBuf[2];
           const color = lum > 130 ? "#111319" : "#ffffff";
           lbl.style.color = color;
@@ -568,6 +584,7 @@ export function SiteScene() {
           else mat?.dispose?.();
         });
         scene.environment?.dispose();
+        pickTarget.dispose();
         renderer.forceContextLoss();
         renderer.dispose();
       };
