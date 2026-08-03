@@ -51,9 +51,9 @@
   display: block;
   font-size: 10px;
   letter-spacing: 0.34em;
-  color: #7d1216;
+  color: #ffb0a8;
   margin-bottom: 4px;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
 }
 .lbl {
   display: block;
@@ -61,12 +61,12 @@
   font-weight: 500;
   font-size: clamp(16px, 2.1vw, 25px);
   letter-spacing: 0.05em;
-  color: #15171b;
+  color: #fff;
   line-height: 1.05;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5), 0 -1px 1px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95), 0 0 14px rgba(0, 0, 0, 0.6), 0 0 3px rgba(0, 0, 0, 0.95);
 }
 .heroNav a:hover .lbl {
-  color: #000;
+  color: #ffe9c2;
   letter-spacing: 0.12em;
 }
 .heroNav a::after {
