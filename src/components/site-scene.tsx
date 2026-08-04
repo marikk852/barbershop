@@ -105,6 +105,7 @@ export function SiteScene() {
   const skipRef = useRef<HTMLButtonElement>(null);
   const fallbackRef = useRef<HTMLDivElement>(null);
   const heroLinkRefs = useRef<(HTMLAnchorElement | null)[]>([]);
+  const heroLensRefs = useRef<(HTMLCanvasElement | null)[]>([]);
 
   useEffect(() => {
     if (!ready) return;
@@ -114,6 +115,10 @@ export function SiteScene() {
     const heroNavEl = heroNavRef.current!;
     const hintEl = hintRef.current; // null, если !isHero
     const heroLinks = heroLinkRefs.current.filter((a): a is HTMLAnchorElement => !!a);
+    // Линзы liquid-glass — по одному <canvas> на пункт меню, см. drawLenses()
+    // в setup3D(). Индексация не важна (каждый канвас сам знает свой
+    // getBoundingClientRect), поэтому просто фильтруем null'ы.
+    const lensCanvases = heroLensRefs.current.filter((c): c is HTMLCanvasElement => !!c);
 
     let sceneReady = false;
     const isHero = heroFirstVisit;
@@ -482,6 +487,54 @@ export function SiteScene() {
         });
       }
 
+      // ---------- линза liquid-glass в капсулах меню ----------
+      // У каждого пункта меню свой <canvas>-"глазок": несколько раз в
+      // секунду забирает область РЕАЛЬНОЙ сцены прямо с основного канваса
+      // (drawImage между canvas-элементами — в отличие от gl.readPixels —
+      // сам делает implicit resolve мультисемплированного буфера, поэтому
+      // второй offscreen-таргет тут не нужен, pickTarget используется
+      // только для побуквенного цвета текста выше) и рисует её с лёгким
+      // увеличением через drawImage — дешёвый трюк "линзы", без ручного
+      // попиксельного сдвига.
+      const lensCtxs = lensCanvases.map((c) => c.getContext("2d"));
+      const LENS_ZOOM = 1.18;
+      const LENS_SAMPLE_INTERVAL = 1 / 6; // ~6 обновлений в секунду
+      let lensSampleAcc = 0;
+      let lensDrawnStatic = false;
+
+      function drawLenses() {
+        if (!lensCanvases.length) return;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        lensCanvases.forEach((lens, i) => {
+          const ctx = lensCtxs[i];
+          if (!ctx) return;
+          const r = lens.getBoundingClientRect();
+          if (r.width === 0 || r.height === 0) return;
+          // Пиксельный буфер канваса держим в реальном разрешении экрана
+          // (а не в CSS-пикселях) — иначе на Retina линза мылится.
+          const w = Math.max(1, Math.round(r.width * dpr));
+          const h = Math.max(1, Math.round(r.height * dpr));
+          if (lens.width !== w) lens.width = w;
+          if (lens.height !== h) lens.height = h;
+          // Область захвата — капсула, чуть уменьшенная (делим на зум),
+          // так что после растяжения в drawImage она ровно заполнит канвас
+          // с эффектом лёгкого увеличения.
+          const cx = (r.left + r.width / 2) * dpr;
+          const cy = (r.top + r.height / 2) * dpr;
+          const sw = (r.width / LENS_ZOOM) * dpr;
+          const sh = (r.height / LENS_ZOOM) * dpr;
+          const sx = cx - sw / 2;
+          const sy = cy - sh / 2;
+          ctx.clearRect(0, 0, lens.width, lens.height);
+          try {
+            ctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, lens.width, lens.height);
+          } catch {
+            // Капсула частично уехала за край экрана — пропускаем кадр,
+            // не критично при следующем обновлении через 1/6с.
+          }
+        });
+      }
+
       let last = performance.now();
       let rafId = 0;
 
@@ -590,6 +643,25 @@ export function SiteScene() {
             colorSampleAcc = 0;
             sampleLabelColors();
           }
+          // prefers-reduced-motion: сцена и так не вращается (autoSpin/
+          // float гейтятся выше), поэтому линзу достаточно нарисовать один
+          // раз статично — она и не должна "устаревать". Иначе — обычный
+          // throttle. Page Visibility API: на скрытой вкладке вообще не
+          // трогаем канвасы линз (document.hidden).
+          if (!document.hidden) {
+            if (reduced) {
+              if (!lensDrawnStatic) {
+                lensDrawnStatic = true;
+                drawLenses();
+              }
+            } else {
+              lensSampleAcc += dt;
+              if (lensSampleAcc >= LENS_SAMPLE_INTERVAL) {
+                lensSampleAcc = 0;
+                drawLenses();
+              }
+            }
+          }
         }
 
         sceneReady = true;
@@ -689,6 +761,11 @@ export function SiteScene() {
       <nav ref={heroNavRef} className={styles.heroNav}>
         {NAV_ITEMS.map((item, i) => (
           <Link key={item.href} href={item.href} ref={(el) => { heroLinkRefs.current[i] = el; }}>
+            <canvas
+              ref={(el) => { heroLensRefs.current[i] = el; }}
+              className={styles.lens}
+              aria-hidden="true"
+            />
             <span className={styles.num}>
               {[...item.num].map((ch, ci) => (
                 <span key={ci} className={styles.numChar}>{ch}</span>

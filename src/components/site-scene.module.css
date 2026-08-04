@@ -64,6 +64,12 @@
 }
 .heroNav a {
   position: relative;
+  /* Заводим собственный стекинг-контекст на каждую капсулу (position +
+     z-index != auto) — иначе .lens/.num/.lbl/псевдоэлементы сравнивались
+     бы по z-index глобально внутри .heroNav, а не локально внутри своего
+     пункта меню. Визуально на несоседних непересекающихся капсулах разницы
+     нет, но так корректно и без сюрпризов при будущих правках. */
+  z-index: 0;
   pointer-events: auto;
   text-decoration: none;
   display: flex;
@@ -93,6 +99,24 @@
   background: #7d1216;
   transform: translateY(-50%);
   transition: background 0.25s ease, box-shadow 0.25s ease;
+}
+.lens {
+  /* Настоящее искажение фона под капсулой: JS (site-scene.tsx, drawLenses)
+     несколько раз в секунду перерисовывает сюда увеличенную область
+     реальной сцены через drawImage — "линза", без backdrop-filter/
+     feDisplacementMap (ненадёжно в Safari/Firefox). border-radius: inherit
+     клипует растровую картинку канваса в ту же пилюлю, что и сама капсула
+     (canvas — replaced-элемент, border-radius клипует его контент как у
+     img). z-index: -1 — под текстом (.num/.lbl, z-index:3) и под глянцевым
+     бликом (::after), но над собственным полупрозрачным фоном капсулы. */
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  pointer-events: none;
 }
 .heroNav a::after {
   /* глянцевый блик сверху — то, что читается как стекло без всякого blur */
