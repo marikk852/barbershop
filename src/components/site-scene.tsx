@@ -1016,6 +1016,19 @@ export function SiteScene() {
                 : undefined
             }
           >
+            {/* "Эхо" кнопки — то же число+подпись, что и в капсуле меню.
+                Видно, пока контент попапа ещё/уже не показан (в начале
+                открытия и в конце закрытия), и кроссфейдит с ним в обе
+                стороны. Без этого геометрия честно доезжает до размера
+                кнопки (проверено покадрово), но выглядит как сжимающийся
+                пустой блик — подпись реальной капсулы иначе появляется
+                рывком только в момент unmount. С эхом к моменту, когда
+                панель уже размером с кнопку, там уже видна ЕЁ подпись —
+                и переключение на настоящую капсулу становится незаметным. */}
+            <div className={`${styles.bookingEcho} ${bookingContentIn ? styles.bookingEchoOut : ""}`}>
+              <span className={styles.bookingEchoNum}>{NAV_ITEMS[0].num}</span>
+              <span className={styles.bookingEchoLbl}>{nav("booking")}</span>
+            </div>
             <div className={`${styles.bookingContent} ${bookingContentIn ? styles.bookingContentIn : ""}`}>
               <button
                 ref={bookingCloseBtnRef}
