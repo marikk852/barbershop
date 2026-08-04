@@ -506,6 +506,12 @@ export function SiteScene() {
       // "выкусывания" остаётся настоящим прозрачным стеклом — там снова
       // виден неискажённый фон, как и было до линзы.
       const LENS_RING = 15; // CSS px
+      // Резкая граница между кольцом-линзой и прозрачным центром была
+      // заметна как жёсткий шов. blur() на самой стирающей заливке
+      // (ниже) размывает именно край erasure в мягкий градиент — дешевле
+      // и надёжнее, чем городить отдельную radial-gradient маску под
+      // форму таблетки.
+      const LENS_FEATHER = 10; // CSS px
       let lensSampleAcc = 0;
       let lensDrawnStatic = false;
 
@@ -549,6 +555,7 @@ export function SiteScene() {
           if (iw > 0 && ih > 0) {
             ctx.save();
             ctx.globalCompositeOperation = "destination-out";
+            ctx.filter = `blur(${LENS_FEATHER * dpr}px)`;
             ctx.beginPath();
             ctx.roundRect(ring, ring, iw, ih, Math.min(ih, iw) / 2);
             ctx.fill();
