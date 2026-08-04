@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import * as THREE from "three";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
@@ -72,6 +73,7 @@ const STROKES = [
 export function SiteScene() {
   const t = useTranslations("Home");
   const nav = useTranslations("Nav");
+  const tBooking = useTranslations("Booking");
 
   // Решение "показывать ли героическое интро" принимается один раз,
   // синхронно, ДО первой отрисовки (useLayoutEffect) — чтобы не было
@@ -106,6 +108,118 @@ export function SiteScene() {
   const fallbackRef = useRef<HTMLDivElement>(null);
   const heroLinkRefs = useRef<(HTMLAnchorElement | null)[]>([]);
   const heroLensRefs = useRef<(HTMLCanvasElement | null)[]>([]);
+
+  /* ============================================================
+     ПОПАП "ЗАПИСЬ НА СТРИЖКУ" — кнопка меню превращается в попап.
+     Классический FLIP без WAAPI: панель — один и тот же DOM-элемент
+     (bookingPanelRef) с постоянным CSS-transition на left/top/width/
+     height/border-radius (см. .bookingPanel в модуле). При открытии
+     первый рендер задаёт инлайн-стилями ТОЧНУЮ геометрию кнопки
+     (bookingExpanded=false) — переход ещё не запущен, элементу просто
+     негде было анимироваться ОТ (только что смонтирован). Следующим
+     кадром (useEffect ниже, после реальной покраски) снимаем инлайн-
+     геометрию (bookingExpanded=true) — итоговые left/top/width/height/
+     border-radius приходят уже из CSS-класса, и ИМЕННО эта смена
+     значений подхватывается transition'ом браузера. Закрытие — то же
+     самое в обратную сторону (снова выставляем геометрию кнопки).
+     Ссылка на реальную кнопку (href="/booking") в разметке остаётся
+     нетронутой — это сознательное прогрессивное улучшение: авто-нажатие
+     клавишами (ctrl/cmd/middle-click) или отказ JS всё равно ведут на
+     настоящую страницу-заглушку /booking, попап не единственный путь.
+     Пряма ссылка /booking по декларации задачи не обязана открывать
+     попап — там просто рендерится обычная страница. */
+  const [bookingOpen, setBookingOpen] = useState(false);
+  const [bookingExpanded, setBookingExpanded] = useState(false);
+  const [bookingContentIn, setBookingContentIn] = useState(false);
+  // Геометрия кнопки в момент клика используется прямо в рендере (инлайн-
+  // стиль первого кадра панели) — это state, не ref: правило
+  // react-hooks/refs не даёт читать ref.current во время рендера, да и
+  // по сути значение влияет на то, что рисуется, а не только на сайд-эффект.
+  const [bookingOrigin, setBookingOrigin] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const bookingPanelRef = useRef<HTMLDivElement>(null);
+  const bookingCloseBtnRef = useRef<HTMLButtonElement>(null);
+  const bookingPrevOverflowRef = useRef("");
+
+  function bookingReducedMotion() {
+    return typeof window !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function openBooking(e: ReactMouseEvent<HTMLAnchorElement>) {
+    // Не мешаем открыть в новой вкладке / скачать ссылку обычным способом —
+    // перехватываем только чистый левый клик без модификаторов.
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    const el = heroLinkRefs.current[0];
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setBookingOrigin({ left: r.left, top: r.top, width: r.width, height: r.height });
+    bookingPrevOverflowRef.current = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    setBookingOpen(true);
+    const reduced = bookingReducedMotion();
+    setBookingExpanded(reduced);
+    setBookingContentIn(reduced);
+  }
+
+  function closeBooking() {
+    setBookingContentIn(false);
+    if (bookingReducedMotion()) {
+      setBookingOpen(false);
+      document.body.style.overflow = bookingPrevOverflowRef.current;
+      heroLinkRefs.current[0]?.focus();
+    } else {
+      // Запускаем обратную геометрию — реальное закрытие (unmount) и
+      // возврат фокуса происходят по transitionend в эффекте ниже, когда
+      // панель реально доедет обратно до кнопки.
+      setBookingExpanded(false);
+    }
+  }
+
+  // Кадр между "смонтировано в геометрии кнопки" и "снята инлайн-геометрия,
+  // включился переход к финальному размеру" — обязательно ПОСЛЕ покраски
+  // (useEffect, не useLayoutEffect), иначе React рискует схлопнуть оба
+  // обновления состояния в один коммит, и браузер ни разу не отрисует
+  // промежуточный кадр "панель размером с кнопку" — переход пропадёт.
+  useEffect(() => {
+    if (!bookingOpen || bookingExpanded) return;
+    const raf = requestAnimationFrame(() => setBookingExpanded(true));
+    return () => cancelAnimationFrame(raf);
+  }, [bookingOpen, bookingExpanded]);
+
+  // transitionend по 'width' — надёжный сигнал "геометрия доехала", в обе
+  // стороны: вперёд — показать контент попапа, назад — на самом деле
+  // закрыть (убрать из DOM, вернуть скролл и фокус).
+  useEffect(() => {
+    if (!bookingOpen) return;
+    const panel = bookingPanelRef.current;
+    if (!panel) return;
+    const onEnd = (e: TransitionEvent) => {
+      if (e.propertyName !== "width") return;
+      if (bookingExpanded) {
+        setBookingContentIn(true);
+      } else {
+        setBookingOpen(false);
+        document.body.style.overflow = bookingPrevOverflowRef.current;
+        heroLinkRefs.current[0]?.focus();
+      }
+    };
+    panel.addEventListener("transitionend", onEnd);
+    return () => panel.removeEventListener("transitionend", onEnd);
+  }, [bookingOpen, bookingExpanded]);
+
+  useEffect(() => {
+    if (bookingContentIn) bookingCloseBtnRef.current?.focus();
+  }, [bookingContentIn]);
+
+  useEffect(() => {
+    if (!bookingOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeBooking();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingOpen]);
 
   useEffect(() => {
     if (!ready) return;
@@ -837,26 +951,82 @@ export function SiteScene() {
       )}
 
       <nav ref={heroNavRef} className={styles.heroNav}>
-        {NAV_ITEMS.map((item, i) => (
-          <Link key={item.href} href={item.href} ref={(el) => { heroLinkRefs.current[i] = el; }}>
-            <canvas
-              ref={(el) => { heroLensRefs.current[i] = el; }}
-              className={styles.lens}
-              aria-hidden="true"
-            />
-            <span className={styles.num}>
-              {[...item.num].map((ch, ci) => (
-                <span key={ci} className={styles.numChar}>{ch}</span>
-              ))}
-            </span>
-            <span className={styles.lbl}>
-              {[...nav(item.key)].map((ch, ci) => (
-                <span key={ci} className={styles.lblChar}>{ch}</span>
-              ))}
-            </span>
-          </Link>
-        ))}
+        {NAV_ITEMS.map((item, i) => {
+          const isBooking = item.key === "booking";
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              ref={(el) => { heroLinkRefs.current[i] = el; }}
+              onClick={isBooking ? openBooking : undefined}
+              // Пока попап открыт, реальная капсула визуально не нужна —
+              // попап и есть она же, только увеличенная. visibility (не
+              // opacity) — чтобы не спорить с per-frame `a.style.opacity`
+              // из WebGL-цикла выше (та трогает только opacity).
+              className={isBooking && bookingOpen ? styles.navItemHidden : undefined}
+            >
+              <canvas
+                ref={(el) => { heroLensRefs.current[i] = el; }}
+                className={styles.lens}
+                aria-hidden="true"
+              />
+              <span className={styles.num}>
+                {[...item.num].map((ch, ci) => (
+                  <span key={ci} className={styles.numChar}>{ch}</span>
+                ))}
+              </span>
+              <span className={styles.lbl}>
+                {[...nav(item.key)].map((ch, ci) => (
+                  <span key={ci} className={styles.lblChar}>{ch}</span>
+                ))}
+              </span>
+            </Link>
+          );
+        })}
       </nav>
+
+      {bookingOpen && (
+        <div
+          className={`${styles.bookingOverlay} ${bookingExpanded ? styles.bookingOverlayIn : ""}`}
+          onClick={closeBooking}
+        >
+          <div
+            ref={bookingPanelRef}
+            className={styles.bookingPanel}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="booking-popup-title"
+            onClick={(e) => e.stopPropagation()}
+            style={
+              !bookingExpanded && bookingOrigin
+                ? {
+                    left: bookingOrigin.left,
+                    top: bookingOrigin.top,
+                    width: bookingOrigin.width,
+                    height: bookingOrigin.height,
+                    borderRadius: "999px",
+                  }
+                : undefined
+            }
+          >
+            <div className={`${styles.bookingContent} ${bookingContentIn ? styles.bookingContentIn : ""}`}>
+              <button
+                ref={bookingCloseBtnRef}
+                type="button"
+                className={styles.bookingClose}
+                onClick={closeBooking}
+                aria-label={tBooking("close")}
+              >
+                ×
+              </button>
+              <h2 id="booking-popup-title" className={styles.bookingTitle}>
+                {tBooking("title")}
+              </h2>
+              <p className={styles.bookingText}>{tBooking("soon")}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {heroFirstVisit && (
         <div ref={hintRef} className={styles.hint}>

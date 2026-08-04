@@ -458,6 +458,102 @@
   to { opacity: 1; }
 }
 
+/* ================= попап "Запись на стрижку" ================= */
+.navItemHidden {
+  /* visibility, не opacity/display — не спорит с per-frame
+     `a.style.opacity`, которое каждый кадр выставляет WebGL-цикл
+     (site-scene.tsx), и не ломает раскладку остальных капсул меню. */
+  visibility: hidden;
+}
+.bookingOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(4, 5, 7, 0);
+  transition: background 0.48s ease;
+}
+.bookingOverlayIn {
+  background: rgba(4, 5, 7, 0.6);
+}
+.bookingPanel {
+  /* FLIP: left/top/width/height/border-radius — те же свойства, что
+     первый рендер выставляет инлайн-стилями ровно по геометрии кнопки
+     (см. site-scene.tsx). Центрирование — через calc(), а НЕ через
+     left:50%+transform:translate(-50%,-50%): второе плохо анимируется
+     вместе с FLIP (два независимых механизма позиционирования на одном
+     transform), calc() даёт финал теми же единицами (px), что и старт. */
+  position: fixed;
+  left: calc(50vw - min(280px, 46vw));
+  top: calc(50vh - min(260px, 41vh));
+  width: min(560px, 92vw);
+  height: min(520px, 82vh);
+  border-radius: 28px;
+  overflow: hidden;
+  background: rgba(15, 16, 19, 0.68);
+  backdrop-filter: blur(28px) saturate(1.4);
+  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+  box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.75), 0 2px 14px rgba(0, 0, 0, 0.4);
+  /* Явно БЕЗ border — попап без рамки, в отличие от капсул меню. */
+  transition:
+    left 0.48s cubic-bezier(0.16, 1, 0.3, 1),
+    top 0.48s cubic-bezier(0.16, 1, 0.3, 1),
+    width 0.48s cubic-bezier(0.16, 1, 0.3, 1),
+    height 0.48s cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 0.48s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.bookingContent {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 44px 36px;
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+.bookingContentIn {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.bookingClose {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: #cfd6de;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.bookingClose:hover,
+.bookingClose:focus-visible {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  outline: none;
+}
+.bookingTitle {
+  margin-top: 4px;
+  font-family: var(--font-bodoni), Didot, serif;
+  font-weight: 500;
+  font-size: clamp(22px, 3vw, 30px);
+  letter-spacing: 0.01em;
+  color: #f4f6f8;
+}
+.bookingText {
+  margin-top: 18px;
+  max-width: 34ch;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #a9b0ba;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .grain, .splash::after { animation: none; }
   .heat, .spark, .sweep { display: none; }
@@ -466,4 +562,5 @@
   .markwrap { transform: scale(1); animation: none; }
   .word span { opacity: 1; transform: none; filter: none; animation: none; }
   .sub { opacity: 0.92; letter-spacing: 0.46em; text-indent: 0.46em; animation: none; }
+  .bookingOverlay, .bookingPanel, .bookingContent { transition: none; }
 }
