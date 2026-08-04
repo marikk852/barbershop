@@ -493,19 +493,27 @@ export function SiteScene() {
       // (drawImage между canvas-элементами — в отличие от gl.readPixels —
       // сам делает implicit resolve мультисемплированного буфера, поэтому
       // второй offscreen-таргет тут не нужен, pickTarget используется
-      // только для побуквенного цвета текста выше) и рисует её с лёгким
-      // увеличением через drawImage — дешёвый трюк "линзы", без ручного
-      // попиксельного сдвига.
+      // только для побуквенного цвета текста выше).
+      //
+      // Ориентир — референс с настоящей рефракцией (Apple Liquid Glass):
+      // край выпуклого стекла заметно "тянет" картинку сильнее, чем
+      // середина, плюс тонкая радужная/хроматическая обводка по кромке.
+      // Честная рефракция — это фрагментный шейдер (per-pixel displacement),
+      // тут вместо этого дешёвое приближение из двух слоёв drawImage разного
+      // зума (общий по всему кольцу + более сильный узкий слой у самого
+      // края — "bulge") плюс декоративный градиентный блик-обводка поверх.
       const lensCtxs = lensCanvases.map((c) => c.getContext("2d"));
-      const LENS_ZOOM = 1.18;
+      const LENS_ZOOM = 1.22; // общее увеличение по всему кольцу
+      const LENS_RIM_ZOOM = 1.75; // усиленное увеличение в узкой полосе у самого края — "bulge"
       const LENS_SAMPLE_INTERVAL = 1 / 6; // ~6 обновлений в секунду
-      // Искажение — только тонким кольцом у самого края капсулы (толще
-      // видимой линии border, чтобы "толстое стекло" читалось), а не на
-      // всю кнопку: если линза покрывает весь текст, буквы перестают
-      // читаться, даже с побуквенной подгонкой чёрный/белый. Центр после
-      // "выкусывания" остаётся настоящим прозрачным стеклом — там снова
-      // виден неискажённый фон, как и было до линзы.
-      const LENS_RING = 15; // CSS px
+      // Искажение — только кольцом у самого края капсулы (толще видимой
+      // линии border, чтобы "толстое стекло" читалось), а не на всю кнопку:
+      // если линза покрывает весь текст, буквы перестают читаться, даже с
+      // побуквенной подгонкой чёрный/белый. Центр после "выкусывания"
+      // остаётся настоящим прозрачным стеклом — там снова виден
+      // неискажённый фон, как и было до линзы.
+      const LENS_RING = 15; // CSS px — общая видимая ширина кольца
+      const LENS_RIM_BAND = 6; // CSS px — под-полоса у самого края с LENS_RIM_ZOOM (< LENS_RING)
       // Резкая граница между кольцом-линзой и прозрачным центром была
       // заметна как жёсткий шов. blur() на самой стирающей заливке
       // (ниже) размывает именно край erasure в мягкий градиент — дешевле
@@ -529,22 +537,45 @@ export function SiteScene() {
           const h = Math.max(1, Math.round(r.height * dpr));
           if (lens.width !== w) lens.width = w;
           if (lens.height !== h) lens.height = h;
-          // Область захвата — капсула, чуть уменьшенная (делим на зум),
-          // так что после растяжения в drawImage она ровно заполнит канвас
-          // с эффектом лёгкого увеличения.
           const cx = (r.left + r.width / 2) * dpr;
           const cy = (r.top + r.height / 2) * dpr;
+          const pillR = Math.min(lens.width, lens.height) / 2;
+          ctx.clearRect(0, 0, lens.width, lens.height);
+
+          // Слой 1 — общий зум по всей капсуле (то же, что было раньше).
           const sw = (r.width / LENS_ZOOM) * dpr;
           const sh = (r.height / LENS_ZOOM) * dpr;
-          const sx = cx - sw / 2;
-          const sy = cy - sh / 2;
-          ctx.clearRect(0, 0, lens.width, lens.height);
           try {
-            ctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, lens.width, lens.height);
+            ctx.drawImage(canvas, cx - sw / 2, cy - sh / 2, sw, sh, 0, 0, lens.width, lens.height);
           } catch {
             // Капсула частично уехала за край экрана — пропускаем кадр,
             // не критично при следующем обновлении через 1/6с.
           }
+
+          // Слой 2 — "bulge": в узкой полосе у самого края рисуем ту же
+          // область с более сильным зумом поверх слоя 1. Клип строим одним
+          // Path2D из внешнего контура капсулы и внутреннего (уже с отступом
+          // LENS_RIM_BAND) через fillRule "evenodd" — так получаем кольцевую
+          // область без ручной геометрии дуг под форму "таблетки".
+          const rim = LENS_RIM_BAND * dpr;
+          const rw = lens.width - rim * 2;
+          const rh = lens.height - rim * 2;
+          if (rw > 0 && rh > 0) {
+            const rimPath = new Path2D();
+            rimPath.roundRect(0, 0, lens.width, lens.height, pillR);
+            rimPath.roundRect(rim, rim, rw, rh, Math.min(rw, rh) / 2);
+            const rsw = (r.width / LENS_RIM_ZOOM) * dpr;
+            const rsh = (r.height / LENS_RIM_ZOOM) * dpr;
+            ctx.save();
+            ctx.clip(rimPath, "evenodd");
+            try {
+              ctx.drawImage(canvas, cx - rsw / 2, cy - rsh / 2, rsw, rsh, 0, 0, lens.width, lens.height);
+            } catch {
+              /* см. катч выше */
+            }
+            ctx.restore();
+          }
+
           // Выкусываем центр, оставляя только кольцо у края видимым —
           // destination-out стирает уже нарисованное независимо от формы
           // капсулы (не круг, а вытянутая "таблетка"), поэтому не нужна
@@ -561,6 +592,26 @@ export function SiteScene() {
             ctx.fill();
             ctx.restore();
           }
+
+          // Декоративная обводка-блик поверх кольца: диагональный градиент
+          // (холодный голубоватый блик сверху-слева → тёплый снизу-справа)
+          // — дешёвая имитация хроматической аберрации/переливов по кромке
+          // настоящего стекла, без честного разложения по RGB-каналам.
+          ctx.save();
+          ctx.globalCompositeOperation = "screen";
+          ctx.globalAlpha = 0.5;
+          const grad = ctx.createLinearGradient(0, 0, lens.width, lens.height);
+          grad.addColorStop(0, "rgba(200,236,255,0.85)");
+          grad.addColorStop(0.5, "rgba(255,255,255,0)");
+          grad.addColorStop(1, "rgba(255,196,150,0.6)");
+          ctx.strokeStyle = grad;
+          ctx.lineWidth = Math.max(1, ring * 0.3);
+          ctx.filter = `blur(${LENS_FEATHER * 0.5 * dpr}px)`;
+          const inset = ring * 0.55;
+          ctx.beginPath();
+          ctx.roundRect(inset, inset, lens.width - inset * 2, lens.height - inset * 2, pillR - inset);
+          ctx.stroke();
+          ctx.restore();
         });
       }
 
