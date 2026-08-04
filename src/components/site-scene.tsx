@@ -180,11 +180,18 @@ export function SiteScene() {
   // (useEffect, не useLayoutEffect), иначе React рискует схлопнуть оба
   // обновления состояния в один коммит, и браузер ни разу не отрисует
   // промежуточный кадр "панель размером с кнопку" — переход пропадёт.
+  //
+  // Зависимость — ТОЛЬКО [bookingOpen], не [bookingOpen, bookingExpanded]:
+  // это исключительно вход в открытие (bookingOpen false->true), запуск
+  // РАЗ за сессию попапа. Если добавить сюда bookingExpanded, эффект
+  // перезапускается и при закрытии тоже (bookingExpanded true->false),
+  // и тут же на следующем кадре сам выставляет bookingExpanded обратно в
+  // true — кнопка закрытия визуально не срабатывала именно из-за этого.
   useEffect(() => {
-    if (!bookingOpen || bookingExpanded) return;
+    if (!bookingOpen) return;
     const raf = requestAnimationFrame(() => setBookingExpanded(true));
     return () => cancelAnimationFrame(raf);
-  }, [bookingOpen, bookingExpanded]);
+  }, [bookingOpen]);
 
   // transitionend по 'width' — надёжный сигнал "геометрия доехала", в обе
   // стороны: вперёд — показать контент попапа, назад — на самом деле
