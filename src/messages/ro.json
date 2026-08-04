@@ -26,6 +26,15 @@
   "Booking": {
     "title": "Programare la tuns",
     "soon": "Programarea online vine în curând. Deocamdată — scrie pe Telegram sau Instagram.",
-    "close": "Închide"
+    "close": "Închide",
+    "pickDate": "Alege data",
+    "pickTime": "Alege ora",
+    "prevMonth": "Luna anterioară",
+    "nextMonth": "Luna următoare",
+    "backToCalendar": "Înapoi la calendar",
+    "loading": "Se încarcă…",
+    "noSlots": "Nu sunt ore libere în această zi — alege altă dată.",
+    "selectedLabel": "Programare pentru",
+    "continueSoon": "Formularul de confirmare vine în curând"
   }
 }

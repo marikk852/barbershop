@@ -483,10 +483,10 @@
      вместе с FLIP (два независимых механизма позиционирования на одном
      transform), calc() даёт финал теми же единицами (px), что и старт. */
   position: fixed;
-  left: calc(50vw - min(280px, 46vw));
-  top: calc(50vh - min(260px, 41vh));
-  width: min(560px, 92vw);
-  height: min(520px, 82vh);
+  left: calc(50vw - min(300px, 46vw));
+  top: calc(50vh - min(330px, 43vh));
+  width: min(600px, 92vw);
+  height: min(660px, 86vh);
   border-radius: 28px;
   overflow: hidden;
   background: rgba(15, 16, 19, 0.68);
@@ -507,6 +507,7 @@
   display: flex;
   flex-direction: column;
   padding: 44px 36px;
+  overflow-y: auto;
   opacity: 0;
   transform: translateY(10px);
   pointer-events: none;

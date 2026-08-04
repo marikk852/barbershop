@@ -1,0 +1,173 @@
+.flow {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin-top: 22px;
+}
+.stepTitle {
+  font-family: var(--font-bodoni), Didot, serif;
+  font-weight: 500;
+  font-size: 17px;
+  color: #e8ecf1;
+  margin: 0 0 14px;
+}
+.back {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  color: #9aa2ac;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  padding: 0 0 14px;
+  transition: color 0.2s ease;
+}
+.back:hover,
+.back:focus-visible {
+  color: #fff;
+  outline: none;
+}
+
+.calHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.monthTitle {
+  font-family: var(--font-bodoni), Didot, serif;
+  font-size: 15px;
+  color: #d6dbe1;
+}
+/* Заглавная только самая первая буква ("август 2026 г." -> "Август 2026
+   г.") — text-transform:capitalize капитализировал бы КАЖДОЕ слово,
+   включая "г." (сокращение года), что для русского/румынского вывода
+   Intl.DateTimeFormat неверно. */
+.monthTitle::first-letter {
+  text-transform: uppercase;
+}
+.navBtn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: #cfd6de;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.2s ease, opacity 0.2s ease;
+}
+.navBtn:hover:not(:disabled),
+.navBtn:focus-visible:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+}
+.navBtn:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 6px;
+}
+.weekdays span {
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b7480;
+}
+
+.calGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  transition: opacity 0.15s ease;
+}
+.calGridLoading {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.day {
+  aspect-ratio: 1;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.045);
+  color: #e4e8ec;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.day:hover:not(:disabled),
+.day:focus-visible:not(:disabled) {
+  background: rgba(216, 31, 38, 0.35);
+  outline: none;
+}
+.day:disabled {
+  background: none;
+  color: #454b54;
+  cursor: default;
+}
+
+.hint {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #a9b0ba;
+}
+
+.slotGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.slot {
+  padding: 10px 0;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e4e8ec;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.slot:hover,
+.slot:focus-visible {
+  border-color: rgba(216, 31, 38, 0.5);
+  outline: none;
+}
+.slotSelected {
+  background: rgba(216, 31, 38, 0.85);
+  border-color: rgba(216, 31, 38, 0.85);
+  color: #fff;
+}
+
+.summary {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.summaryText {
+  font-size: 14px;
+  color: #cfd6de;
+}
+.continueBtn {
+  align-self: flex-start;
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+  color: #6b7480;
+  font-size: 13px;
+  cursor: not-allowed;
+}

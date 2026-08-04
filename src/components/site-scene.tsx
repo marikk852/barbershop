@@ -6,6 +6,7 @@ import * as THREE from "three";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
+import { BookingFlow } from "@/components/booking-flow";
 import styles from "./site-scene.module.css";
 
 const NAV_ITEMS = [
@@ -1042,7 +1043,12 @@ export function SiteScene() {
               <h2 id="booking-popup-title" className={styles.bookingTitle}>
                 {tBooking("title")}
               </h2>
-              <p className={styles.bookingText}>{tBooking("soon")}</p>
+              {/* Календарь дня + сетка времени (src/lib/shop-time.ts +
+                  /api/booking/month, /api/booking/slots) — реальная
+                  доступность по WorkingHours/TimeOff/Booking. Выбор
+                  услуги и сама отправка записи — следующая задача,
+                  здесь останавливаемся на выборе даты/времени. */}
+              {bookingContentIn && <BookingFlow />}
             </div>
           </div>
         </div>
