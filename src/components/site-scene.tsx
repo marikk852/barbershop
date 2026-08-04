@@ -499,6 +499,13 @@ export function SiteScene() {
       const lensCtxs = lensCanvases.map((c) => c.getContext("2d"));
       const LENS_ZOOM = 1.18;
       const LENS_SAMPLE_INTERVAL = 1 / 6; // ~6 обновлений в секунду
+      // Искажение — только тонким кольцом у самого края капсулы (толще
+      // видимой линии border, чтобы "толстое стекло" читалось), а не на
+      // всю кнопку: если линза покрывает весь текст, буквы перестают
+      // читаться, даже с побуквенной подгонкой чёрный/белый. Центр после
+      // "выкусывания" остаётся настоящим прозрачным стеклом — там снова
+      // виден неискажённый фон, как и было до линзы.
+      const LENS_RING = 15; // CSS px
       let lensSampleAcc = 0;
       let lensDrawnStatic = false;
 
@@ -531,6 +538,21 @@ export function SiteScene() {
           } catch {
             // Капсула частично уехала за край экрана — пропускаем кадр,
             // не критично при следующем обновлении через 1/6с.
+          }
+          // Выкусываем центр, оставляя только кольцо у края видимым —
+          // destination-out стирает уже нарисованное независимо от формы
+          // капсулы (не круг, а вытянутая "таблетка"), поэтому не нужна
+          // отдельная math под radial-gradient маску под её пропорции.
+          const ring = LENS_RING * dpr;
+          const iw = lens.width - ring * 2;
+          const ih = lens.height - ring * 2;
+          if (iw > 0 && ih > 0) {
+            ctx.save();
+            ctx.globalCompositeOperation = "destination-out";
+            ctx.beginPath();
+            ctx.roundRect(ring, ring, iw, ih, Math.min(ih, iw) / 2);
+            ctx.fill();
+            ctx.restore();
           }
         });
       }
