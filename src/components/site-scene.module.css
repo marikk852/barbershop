@@ -80,21 +80,33 @@
   z-index: 70;
 }
 .spine {
-  /* Раньше — ::before на .heroNav; теперь настоящий элемент — чтобы его
-     можно было измерить (getBoundingClientRect) и провести через тот же
-     multi-element FLIP, что и капсулы (иначе поворот "вертикальная ->
-     горизонтальная" нечем было бы анимировать). */
+  /* Раньше — ::before на .heroNav; теперь настоящий элемент. В отличие от
+     капсул (которые двигает flex-реflow — там transform-компенсация из
+     multi-element FLIP обязательна, CSS не умеет анимировать смену
+     flex-direction/order), спина — обычный position:absolute с явными
+     left/top/width/height, которые CSS прекрасно анимирует напрямую:
+     ИМЕННО transition ниже поворачивает вертикальную линию в
+     горизонтальную. Высота — height: calc(...), а не top+bottom-стретч:
+     "bottom" в доковом состоянии пришлось бы задавать как auto (там уже
+     нет растяжения по высоте), а transition к/от auto не анимируется —
+     браузер просто прыгнет. С явным height обе стороны — конкретные
+     значения, интерполируется гладко. */
   position: absolute;
   left: 0;
   top: 4px;
-  bottom: 4px;
+  height: calc(100% - 8px);
   width: 2px;
   background: #7d1216;
+  transition:
+    left 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    top 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    width 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    height 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .heroNavDock .spine {
   left: 50%;
   top: -14px;
-  bottom: auto;
   width: min(220px, 62vw);
   height: 2px;
   transform: translateX(-50%);
@@ -103,6 +115,13 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* Обязательна для multi-element FLIP (site-scene.tsx, useLayoutEffect):
+     тот JS выставляет и снимает компенсирующий transform, но БЕЗ этого
+     transition-свойства снятие просто мгновенно прыгало бы в новое
+     место — никакой анимации, ровно баг "полоска/капсулы просто
+     появляются". Spring-кривая (лёгкий overshoot) — тот же почерк, что и
+     у остальных Apple-style переходов в этом файле. */
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 /* "Запись" (dockOrder: 3, между Прайсом и Портфолио) — крупнее и
    приподнята над рядом остальных иконок, чтобы читаться как акцентный
@@ -156,6 +175,12 @@
   padding: 0;
   border-radius: 50%;
   justify-content: center;
+  /* Базовый .heroNav a стартует с opacity:0 (энтранс до первого замера
+     WebGL-циклом) и держится инлайн-стилем `a.style.opacity`, который
+     JS выставляет каждый кадр. При коллапсе в док этот инлайн явно
+     снимается (removeAttribute("style") в handleNavClick) — без
+     override здесь капсула так и осталась бы невидимой навсегда. */
+  opacity: 1;
 }
 .heroNavDock .navItemFeatured a {
   width: 64px;

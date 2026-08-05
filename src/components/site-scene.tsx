@@ -206,11 +206,23 @@ export function SiteScene() {
   // multi-element FLIP: компенсирующий transform на каждый элемент, чья
   // ВИДИМАЯ позиция должна остаться прежней на первом кадре после смены
   // layout-режима, с последующим плавным переходом к новому месту.
+  //
+  // Установка компенсации и её снятие — НАРОЧНО в разных хуках (как и у
+  // popupPhase "opening"->"open" выше). Если сделать оба шага синхронно в
+  // одном useLayoutEffect (как было раньше — баг: "полоска и кнопки просто
+  // появляются, без анимации"), браузер ни разу не красит скомпенсированный
+  // кадр: useLayoutEffect выполняется целиком ДО первой отрисовки, и
+  // requestAnimationFrame, запланированный изнутри него, срабатывает в
+  // ТОМ ЖЕ грядущем кадре, что и сама покраска — снятие transform
+  // происходит раньше, чем браузер вообще успевает что-то нарисовать.
+  // useLayoutEffect здесь оставлен только для СИНХРОННОГО измерения "after"
+  // и установки компенсации ДО покраски; снятие — в обычном useEffect
+  // ниже, который by design запускается ПОСЛЕ покраски.
   useLayoutEffect(() => {
     const before = flipBeforeRef.current;
     flipBeforeRef.current = null;
     if (!before || prefersReducedMotion()) return;
-    const animate = (el: HTMLElement | null, beforeRect: Rect | null) => {
+    const apply = (el: HTMLElement | null, beforeRect: Rect | null) => {
       if (!el || !beforeRect) return;
       const after = el.getBoundingClientRect();
       const dx = beforeRect.left + beforeRect.width / 2 - (after.left + after.width / 2);
@@ -218,14 +230,26 @@ export function SiteScene() {
       if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
       el.style.transition = "none";
       el.style.transform = `translate(${dx}px, ${dy}px)`;
-      void el.offsetHeight; // форсим reflow — фиксируем "before"-кадр до включения transition
-      requestAnimationFrame(() => {
-        el.style.transition = "";
-        el.style.transform = "";
-      });
     };
-    navWrapRefs.current.forEach((el, i) => animate(el, before.items[i]));
-    animate(spineRef.current, before.spine);
+    navWrapRefs.current.forEach((el, i) => apply(el, before.items[i]));
+    apply(spineRef.current, before.spine);
+    // Один общий forced reflow на все элементы разом — фиксирует
+    // "before"-кадр (transition:none применился) до того, как что-либо
+    // ещё успеет его снять.
+    void document.body.offsetHeight;
+  }, [dockMode]);
+
+  useEffect(() => {
+    const clear = (el: HTMLElement | null) => {
+      if (!el) return;
+      el.style.transition = "";
+      el.style.transform = "";
+    };
+    const raf = requestAnimationFrame(() => {
+      navWrapRefs.current.forEach(clear);
+      clear(spineRef.current);
+    });
+    return () => cancelAnimationFrame(raf);
   }, [dockMode]);
 
   function finalizeClose(closedIndex: number | null) {
