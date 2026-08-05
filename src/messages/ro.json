@@ -1,6 +1,6 @@
 {
   "Nav": {
-    "booking": "Programare la tuns",
+    "booking": "Programare",
     "bio": "Biografie",
     "price": "Listă de prețuri",
     "portfolio": "Portofoliu"
@@ -24,7 +24,7 @@
     "title": "Portofoliu"
   },
   "Booking": {
-    "title": "Programare la tuns",
+    "title": "Programare",
     "soon": "Programarea online vine în curând. Deocamdată — scrie pe Telegram sau Instagram.",
     "close": "Închide",
     "pickDate": "Alege data",

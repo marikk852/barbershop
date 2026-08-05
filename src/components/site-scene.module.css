@@ -52,15 +52,65 @@
   pointer-events: none;
   opacity: 0;
 }
-.heroNav::before {
-  /* общая кромка — спина клинка, к которой приварены пункты */
-  content: "";
+/* ---------- свёрнутое состояние: горизонтальный док внизу экрана ----------
+   Переключается ровно один раз за сессию попапа (см. dockMode в
+   site-scene.tsx) — не JS-цикл сцены больше не трогает left/width/opacity
+   .heroNav, пока этот класс висит (navCollapsedRef). Сама СМЕНА позиции —
+   не через переход этих CSS-значений (flex-direction не анимируется), а
+   через multi-element FLIP (JS выставляет компенсирующий transform на
+   каждый .navItemWrap/.spine, см. useLayoutEffect) — здесь только конечные
+   статичные значения обоих состояний. */
+.heroNavDock {
+  top: auto;
+  left: 50%;
+  bottom: max(22px, env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 16px;
+  padding-left: 0;
+  width: auto;
+  opacity: 1;
+  pointer-events: auto;
+  /* Выше .bookingOverlay (z-index:60) — пока попап открыт, полноэкранный
+     оверлей иначе перехватывал бы клики по доку раньше, чем они доходили
+     бы до самих иконок (реальный клик мышью всегда достаётся САМОМУ
+     ВЕРХНЕМУ элементу под курсором — оверлей лежал бы поверх дока и глушил
+     переключение между попапами прямо кликом по другой иконке). */
+  z-index: 70;
+}
+.spine {
+  /* Раньше — ::before на .heroNav; теперь настоящий элемент — чтобы его
+     можно было измерить (getBoundingClientRect) и провести через тот же
+     multi-element FLIP, что и капсулы (иначе поворот "вертикальная ->
+     горизонтальная" нечем было бы анимировать). */
   position: absolute;
   left: 0;
   top: 4px;
   bottom: 4px;
   width: 2px;
   background: #7d1216;
+}
+.heroNavDock .spine {
+  left: 50%;
+  top: -14px;
+  bottom: auto;
+  width: min(220px, 62vw);
+  height: 2px;
+  transform: translateX(-50%);
+}
+.navItemWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+/* "Запись" (dockOrder: 3, между Прайсом и Портфолио) — крупнее и
+   приподнята над рядом остальных иконок, чтобы читаться как акцентный
+   центральный пункт дока, раз математически отцентровать нечётный ряд из
+   4 элементов нельзя. Порядок (order) задаётся инлайн-стилем из
+   item.dockOrder в site-scene.tsx. */
+.heroNavDock .navItemFeatured {
+  transform: translateY(-8px);
 }
 .heroNav a {
   position: relative;
@@ -79,6 +129,7 @@
   padding: 12px 22px;
   border-radius: 999px;
   opacity: 0;
+  overflow: hidden; /* клипует невидимый (opacity:0) num/lbl внутри уменьшенного доковом-круга */
   background: rgba(255, 255, 255, 0.025);
   border: 1.25px solid rgba(255, 255, 255, 0.35);
   box-shadow:
@@ -86,10 +137,34 @@
     inset 0 -1px 1px rgba(0, 0, 0, 0.2),
     0 12px 24px -14px rgba(0, 0, 0, 0.8),
     0 2px 6px rgba(0, 0, 0, 0.4);
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease, box-shadow 0.25s ease;
+  transition:
+    transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    height 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    padding 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.heroNavDock a {
+  /* .heroNavDock — это доп. класс на ТОМ ЖЕ <nav>, что и .heroNav (не
+     вложенный элемент) — селектор должен идти прямо от него, без
+     промежуточного ".heroNav" (иначе никогда не матчится: descendant
+     combinator требует РАЗНЫХ узлов, а не двух классов на одном и том же). */
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border-radius: 50%;
+  justify-content: center;
+}
+.heroNavDock .navItemFeatured a {
+  width: 64px;
+  height: 64px;
+  border-color: rgba(216, 31, 38, 0.55);
 }
 .heroNav a::before {
-  /* насечка — соединяет капсулу со спиной клинка */
+  /* насечка — соединяет капсулу со спиной клинка (только в вертикальном
+     режиме — в доке у круглых иконок нет "спины", к которой приваривать) */
   content: "";
   position: absolute;
   left: -22px;
@@ -98,7 +173,10 @@
   height: 1px;
   background: #7d1216;
   transform: translateY(-50%);
-  transition: background 0.25s ease, box-shadow 0.25s ease;
+  transition: background 0.25s ease, box-shadow 0.25s ease, opacity 0.3s ease;
+}
+.heroNavDock a::before {
+  opacity: 0;
 }
 .lens {
   /* Настоящее искажение фона под капсулой: JS (site-scene.tsx, drawLenses)
@@ -117,6 +195,14 @@
   height: 100%;
   border-radius: inherit;
   pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.heroNavDock .lens {
+  /* drawLenses() перестаёт обновлять канвас, пока меню в доке
+     (navCollapsedRef в site-scene.tsx) — без этого тут осталась бы
+     "замёрзшая" картинка сцены на момент коллапса. Прячем, а не просто
+     не рисуем — контент круглой иконки только фон+иконка. */
+  opacity: 0;
 }
 .heroNav a::after {
   /* глянцевый блик сверху — то, что читается как стекло без всякого blur */
@@ -181,6 +267,50 @@
 .numChar,
 .lblChar {
   transition: color 0.3s ease;
+}
+.heroNavDock .num,
+.heroNavDock .lbl {
+  /* Крестфейд с иконкой, а не жёсткий display:none — иначе не было бы
+     анимации "текст превращается в иконку". Сами буквы физически
+     остаются в потоке (клипуются overflow:hidden на .heroNav a — см.
+     выше), поэтому не влияют на итоговую круглую форму. */
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.navIcon {
+  /* Абсолютно позиционирована поверх num/lbl — не участвует в их
+     flex-раскладке, поэтому центрируется независимо от того, что там
+     происходит с (невидимым) текстом. */
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease 0.1s;
+}
+.heroNavDock .navIcon {
+  opacity: 1;
+}
+.navCaption {
+  height: 0;
+  margin-top: 0;
+  overflow: hidden;
+  opacity: 0;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: #cfd6de;
+  white-space: nowrap;
+  text-align: center;
+  transition: opacity 0.3s ease 0.15s, height 0.3s ease, margin-top 0.3s ease;
+}
+.heroNavDock .navCaption {
+  height: 14px;
+  margin-top: 4px;
+  opacity: 1;
 }
 
 .hint {

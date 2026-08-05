@@ -1,0 +1,79 @@
+.flow {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin-top: 22px;
+}
+.hint {
+  margin-top: 22px;
+  font-size: 14px;
+  color: #6b7480;
+}
+.paragraph {
+  font-size: 15px;
+  line-height: 1.7;
+  color: #cfd6de;
+}
+.meta {
+  margin-top: 14px;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #6b7480;
+}
+
+.priceList {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.priceRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.priceRow:last-child {
+  border-bottom: none;
+}
+.priceName {
+  font-size: 15px;
+  color: #e4e8ec;
+}
+.priceValue {
+  white-space: nowrap;
+  font-family: var(--font-bodoni), Didot, serif;
+  font-size: 16px;
+  color: #f4f6f8;
+}
+
+.portfolioGrid {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  overflow-y: auto;
+}
+.portfolioItem {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+}
+.portfolioImg {
+  object-fit: cover;
+}
+.portfolioCaption {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  padding: 16px 8px 6px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85), transparent);
+  font-size: 10px;
+  color: #cfd6de;
+}

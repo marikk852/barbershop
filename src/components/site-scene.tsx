@@ -7,14 +7,30 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
 import { BookingFlow } from "@/components/booking-flow";
+import { BioFlow } from "@/components/bio-flow";
+import { PriceFlow } from "@/components/price-flow";
+import { PortfolioFlow } from "@/components/portfolio-flow";
+import { BookingIcon, BioIcon, PriceIcon, PortfolioIcon } from "@/components/nav-icons";
 import styles from "./site-scene.module.css";
 
 const NAV_ITEMS = [
-  { num: "01", key: "booking", href: "/booking" },
-  { num: "02", key: "bio", href: "/bio" },
-  { num: "03", key: "price", href: "/price" },
-  { num: "04", key: "portfolio", href: "/portfolio" },
+  { num: "01", key: "booking", href: "/booking", Icon: BookingIcon, dockOrder: 3 },
+  { num: "02", key: "bio", href: "/bio", Icon: BioIcon, dockOrder: 1 },
+  { num: "03", key: "price", href: "/price", Icon: PriceIcon, dockOrder: 2 },
+  { num: "04", key: "portfolio", href: "/portfolio", Icon: PortfolioIcon, dockOrder: 4 },
 ] as const;
+
+type Rect = { left: number; top: number; width: number; height: number };
+
+function rectOf(el: HTMLElement | null): Rect | null {
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  return { left: r.left, top: r.top, width: r.width, height: r.height };
+}
+
+function prefersReducedMotion() {
+  return typeof window !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
 const BRAND = "CONDREA";
 
@@ -75,6 +91,9 @@ export function SiteScene() {
   const t = useTranslations("Home");
   const nav = useTranslations("Nav");
   const tBooking = useTranslations("Booking");
+  const tBio = useTranslations("Bio");
+  const tPrice = useTranslations("Price");
+  const tPortfolio = useTranslations("Portfolio");
 
   // Решение "показывать ли героическое интро" принимается один раз,
   // синхронно, ДО первой отрисовки (useLayoutEffect) — чтобы не было
@@ -111,123 +130,233 @@ export function SiteScene() {
   const heroLensRefs = useRef<(HTMLCanvasElement | null)[]>([]);
 
   /* ============================================================
-     ПОПАП "ЗАПИСЬ НА СТРИЖКУ" — кнопка меню превращается в попап.
-     Классический FLIP без WAAPI: панель — один и тот же DOM-элемент
-     (bookingPanelRef) с постоянным CSS-transition на left/top/width/
-     height/border-radius (см. .bookingPanel в модуле). При открытии
-     первый рендер задаёт инлайн-стилями ТОЧНУЮ геометрию кнопки
-     (bookingExpanded=false) — переход ещё не запущен, элементу просто
-     негде было анимироваться ОТ (только что смонтирован). Следующим
-     кадром (useEffect ниже, после реальной покраски) снимаем инлайн-
-     геометрию (bookingExpanded=true) — итоговые left/top/width/height/
-     border-radius приходят уже из CSS-класса, и ИМЕННО эта смена
-     значений подхватывается transition'ом браузера. Закрытие — то же
-     самое в обратную сторону (снова выставляем геометрию кнопки).
-     Ссылка на реальную кнопку (href="/booking") в разметке остаётся
-     нетронутой — это сознательное прогрессивное улучшение: авто-нажатие
-     клавишами (ctrl/cmd/middle-click) или отказ JS всё равно ведут на
-     настоящую страницу-заглушку /booking, попап не единственный путь.
-     Пряма ссылка /booking по декларации задачи не обязана открывать
-     попап — там просто рендерится обычная страница. */
-  const [bookingOpen, setBookingOpen] = useState(false);
-  const [bookingExpanded, setBookingExpanded] = useState(false);
-  const [bookingContentIn, setBookingContentIn] = useState(false);
-  // Геометрия кнопки в момент клика используется прямо в рендере (инлайн-
-  // стиль первого кадра панели) — это state, не ref: правило
-  // react-hooks/refs не даёт читать ref.current во время рендера, да и
-  // по сути значение влияет на то, что рисуется, а не только на сайд-эффект.
-  const [bookingOrigin, setBookingOrigin] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
-  const bookingPanelRef = useRef<HTMLDivElement>(null);
-  const bookingCloseBtnRef = useRef<HTMLButtonElement>(null);
-  const bookingPrevOverflowRef = useRef("");
+     ПОПАП МЕНЮ (общий для всех 4 пунктов) + СВОРАЧИВАНИЕ МЕНЮ В ДОК.
 
-  function bookingReducedMotion() {
-    return typeof window !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+     Два независимых, но синхронизированных механизма:
+
+     1) Popup FLIP — тот же приём, что раньше был только у "Записи":
+        панель (popupPanelRef) держит постоянный CSS-transition на
+        left/top/width/height/border-radius; первый рендер после клика
+        выставляет инлайн-стилями точную геометрию капсулы-источника
+        (popupPhase="opening"), следующим кадром (useEffect+rAF, после
+        покраски) инлайн снимается (popupPhase="open") — финальные
+        значения приходят из CSS-класса, и ИМЕННО смена значений
+        подхватывается transition'ом. Закрытие — то же в обратную
+        сторону (popupPhase="closing" сразу выставляет геометрию
+        источника заново).
+
+     2) Nav FLIP — сворачивание вертикального меню на клинке в
+        горизонтальный док внизу экрана (и обратно). Отдельный DOM-элемент
+        на каждый пункт (.navItemWrap, см. JSX) + "спина" меню (теперь
+        настоящий div, не ::before — чтобы её можно было измерить и
+        анимировать так же). Классический multi-element FLIP: ПЕРЕД
+        переключением CSS-класса (dockMode) синхронно в обработчике клика
+        снимаем getBoundingClientRect() каждого элемента ("before"),
+        useLayoutEffect ниже (после того как класс уже применился и
+        браузер пересчитал layout, но ДО покраски) меряет "after",
+        выставляет компенsирующий transform (center-to-center offset) с
+        transition:none, форсит reflow и на следующем кадре снимает и
+        transform, и override transition — CSS-класс сам доигрывает
+        переход. Работает в обе стороны (в док и обратно) одним и тем же
+        кодом, т.к. просто использует текущее (any) состояние как "before".
+
+        dockMode — не отдельный флаг, а производное от activeIndex !== null:
+        сворачивание происходит РОВНО на первом клике (кто угодно из 4),
+        разворачивание обратно — когда ПОСЛЕДНИЙ открытый попап закрыт БЕЗ
+        выбора следующего пункта (pendingIndexRef пуст).
+     ============================================================ */
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [popupPhase, setPopupPhase] = useState<"closed" | "opening" | "open" | "closing">("closed");
+  const [popupContentIn, setPopupContentIn] = useState(false);
+  // Геометрия источника (капсулы/доковой иконки) в момент клика — нужна
+  // прямо в рендере (инлайн-стиль первого кадра панели), поэтому state,
+  // а не ref: правило react-hooks/refs не даёт читать ref.current во
+  // время рендера, да и по сути значение влияет на то, что рисуется.
+  const [popupOrigin, setPopupOrigin] = useState<Rect | null>(null);
+  const dockMode = activeIndex !== null;
+
+  const popupPanelRef = useRef<HTMLDivElement>(null);
+  const popupCloseBtnRef = useRef<HTMLButtonElement>(null);
+  const prevOverflowRef = useRef("");
+  // Пункт, который нужно открыть СРАЗУ ПОСЛЕ того, как текущий попап
+  // реально доедет до закрытия (переключение между двумя открытыми
+  // попапами — "сперва закрытие предыдущего, потом открытие нового").
+  // null — обычное закрытие (без следующего), тогда меню разворачивается
+  // обратно в вертикальное.
+  const pendingIndexRef = useRef<number | null>(null);
+  const navWrapRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const spineRef = useRef<HTMLDivElement>(null);
+  const flipBeforeRef = useRef<{ items: (Rect | null)[]; spine: Rect | null } | null>(null);
+  // WebGL-цикл (setup3D/frame ниже) должен перестать сам позиционировать
+  // .heroNav, пока меню свёрнуто в док — читает этот ref каждый кадр
+  // (не state — незачем перерендеривать React-дерево ради значения,
+  // нужного только внутри imperative-цикла).
+  const navCollapsedRef = useRef(false);
+  useEffect(() => {
+    navCollapsedRef.current = dockMode;
+  }, [dockMode]);
+
+  function captureFlipBefore() {
+    flipBeforeRef.current = {
+      items: navWrapRefs.current.map((el) => rectOf(el)),
+      spine: rectOf(spineRef.current),
+    };
   }
 
-  function openBooking(e: ReactMouseEvent<HTMLAnchorElement>) {
+  // multi-element FLIP: компенсирующий transform на каждый элемент, чья
+  // ВИДИМАЯ позиция должна остаться прежней на первом кадре после смены
+  // layout-режима, с последующим плавным переходом к новому месту.
+  useLayoutEffect(() => {
+    const before = flipBeforeRef.current;
+    flipBeforeRef.current = null;
+    if (!before || prefersReducedMotion()) return;
+    const animate = (el: HTMLElement | null, beforeRect: Rect | null) => {
+      if (!el || !beforeRect) return;
+      const after = el.getBoundingClientRect();
+      const dx = beforeRect.left + beforeRect.width / 2 - (after.left + after.width / 2);
+      const dy = beforeRect.top + beforeRect.height / 2 - (after.top + after.height / 2);
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+      el.style.transition = "none";
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+      void el.offsetHeight; // форсим reflow — фиксируем "before"-кадр до включения transition
+      requestAnimationFrame(() => {
+        el.style.transition = "";
+        el.style.transform = "";
+      });
+    };
+    navWrapRefs.current.forEach((el, i) => animate(el, before.items[i]));
+    animate(spineRef.current, before.spine);
+  }, [dockMode]);
+
+  function finalizeClose(closedIndex: number | null) {
+    captureFlipBefore(); // текущие (доковые) позиции — до отката в вертикальное меню
+    setActiveIndex(null);
+    setPopupPhase("closed");
+    // Осознанное исключение: возврат скролла страницы — сайд-эффект внешней
+    // системы (DOM), не рендер, и вызывается только из обработчиков клика/
+    // клавиатуры/transitionend, никогда во время рендера.
+    // eslint-disable-next-line react-hooks/immutability
+    document.body.style.overflow = prevOverflowRef.current;
+    if (closedIndex !== null) heroLinkRefs.current[closedIndex]?.focus();
+  }
+
+  function handleNavClick(e: ReactMouseEvent<HTMLAnchorElement>, index: number) {
     // Не мешаем открыть в новой вкладке / скачать ссылку обычным способом —
     // перехватываем только чистый левый клик без модификаторов.
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
-    const el = heroLinkRefs.current[0];
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    setBookingOrigin({ left: r.left, top: r.top, width: r.width, height: r.height });
-    bookingPrevOverflowRef.current = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    setBookingOpen(true);
-    const reduced = bookingReducedMotion();
-    setBookingExpanded(reduced);
-    setBookingContentIn(reduced);
-  }
+    if (activeIndex === index) return; // уже открыт этот же пункт
 
-  function closeBooking() {
-    setBookingContentIn(false);
-    if (bookingReducedMotion()) {
-      setBookingOpen(false);
-      document.body.style.overflow = bookingPrevOverflowRef.current;
-      heroLinkRefs.current[0]?.focus();
+    const rect = rectOf(heroLinkRefs.current[index]);
+    if (!rect) return;
+    const reduced = prefersReducedMotion();
+
+    if (activeIndex === null) {
+      // Первое открытие — синхронно коллапс меню в док + попап.
+      captureFlipBefore();
+      // WebGL-цикл (frame()) больше не будет трогать эти инлайн-стили,
+      // пока меню в доке (navCollapsedRef) — снимаем их явно, иначе
+      // последнее выставленное JS-значение (left/width/opacity капсулы,
+      // opacity/transform каждой ссылки) перебивало бы новый CSS-класс
+      // .heroNavDock своим приоритетом инлайн-стиля.
+      heroNavRef.current?.removeAttribute("style");
+      heroLinkRefs.current.forEach((a) => a?.removeAttribute("style"));
+      prevOverflowRef.current = document.body.style.overflow;
+      // См. пояснение в finalizeClose — тот же осознанный случай, только
+      // в обратную сторону (лочим скролл при открытии).
+      // eslint-disable-next-line react-hooks/immutability
+      document.body.style.overflow = "hidden";
+      setPopupOrigin(rect);
+      setActiveIndex(index);
+      setPopupPhase(reduced ? "open" : "opening");
+      setPopupContentIn(reduced);
+    } else if (reduced) {
+      // Меню уже в доке, но без анимаций — переключаемся мгновенно.
+      setPopupOrigin(rect);
+      setActiveIndex(index);
+      setPopupPhase("open");
+      setPopupContentIn(true);
     } else {
-      // Запускаем обратную геометрию — реальное закрытие (unmount) и
-      // возврат фокуса происходят по transitionend в эффекте ниже, когда
-      // панель реально доедет обратно до кнопки.
-      setBookingExpanded(false);
+      // Меню уже в доке — переключение между попапами: сперва закрываем
+      // текущий (до ЕГО ТЕКУЩЕЙ доковой иконки — popupOrigin ещё хранит
+      // геометрию самого первого открытия, из вертикального меню, её
+      // обязательно обновить перед схлопыванием, иначе панель уедет не
+      // туда), затем (см. transitionend-эффект ниже) открываем новый от
+      // его доковой иконки.
+      const closingRect = rectOf(heroLinkRefs.current[activeIndex]);
+      if (closingRect) setPopupOrigin(closingRect);
+      pendingIndexRef.current = index;
+      setPopupContentIn(false);
+      setPopupPhase("closing");
     }
   }
 
-  // Кадр между "смонтировано в геометрии кнопки" и "снята инлайн-геометрия,
-  // включился переход к финальному размеру" — обязательно ПОСЛЕ покраски
-  // (useEffect, не useLayoutEffect), иначе React рискует схлопнуть оба
-  // обновления состояния в один коммит, и браузер ни разу не отрисует
-  // промежуточный кадр "панель размером с кнопку" — переход пропадёт.
-  //
-  // Зависимость — ТОЛЬКО [bookingOpen], не [bookingOpen, bookingExpanded]:
-  // это исключительно вход в открытие (bookingOpen false->true), запуск
-  // РАЗ за сессию попапа. Если добавить сюда bookingExpanded, эффект
-  // перезапускается и при закрытии тоже (bookingExpanded true->false),
-  // и тут же на следующем кадре сам выставляет bookingExpanded обратно в
-  // true — кнопка закрытия визуально не срабатывала именно из-за этого.
+  function closePopup() {
+    setPopupContentIn(false);
+    pendingIndexRef.current = null; // обычное закрытие — без следующего пункта
+    if (prefersReducedMotion()) {
+      finalizeClose(activeIndex);
+    } else {
+      setPopupPhase("closing");
+    }
+  }
+
+  // opening -> open ПОСЛЕ покраски (useEffect, не useLayoutEffect) — иначе
+  // React рискует схлопнуть оба обновления состояния в один коммит, и
+  // браузер ни разу не отрisует промежуточный кадр "панель размером с
+  // источником" — переход пропадёт (см. подробный разбор в истории проекта).
   useEffect(() => {
-    if (!bookingOpen) return;
-    const raf = requestAnimationFrame(() => setBookingExpanded(true));
+    if (popupPhase !== "opening") return;
+    const raf = requestAnimationFrame(() => setPopupPhase("open"));
     return () => cancelAnimationFrame(raf);
-  }, [bookingOpen]);
+  }, [popupPhase]);
 
   // transitionend по 'width' — надёжный сигнал "геометрия доехала", в обе
-  // стороны: вперёд — показать контент попапа, назад — на самом деле
-  // закрыть (убрать из DOM, вернуть скролл и фокус).
+  // стороны: вперёд — показать контент попапа; назад — либо открыть
+  // отложенный pendingIndexRef (переключение между попапами), либо
+  // по-настоящему закрыть и развернуть меню обратно в вертикальное.
   useEffect(() => {
-    if (!bookingOpen) return;
-    const panel = bookingPanelRef.current;
+    if (popupPhase === "closed") return;
+    const panel = popupPanelRef.current;
     if (!panel) return;
     const onEnd = (e: TransitionEvent) => {
       if (e.propertyName !== "width") return;
-      if (bookingExpanded) {
-        setBookingContentIn(true);
-      } else {
-        setBookingOpen(false);
-        document.body.style.overflow = bookingPrevOverflowRef.current;
-        heroLinkRefs.current[0]?.focus();
+      if (popupPhase === "open") {
+        setPopupContentIn(true);
+        return;
       }
+      if (popupPhase !== "closing") return;
+      const pending = pendingIndexRef.current;
+      pendingIndexRef.current = null;
+      if (pending !== null) {
+        const rect = rectOf(heroLinkRefs.current[pending]);
+        if (rect) {
+          setPopupOrigin(rect);
+          setActiveIndex(pending);
+          setPopupPhase("opening");
+          return;
+        }
+      }
+      finalizeClose(activeIndex);
     };
     panel.addEventListener("transitionend", onEnd);
     return () => panel.removeEventListener("transitionend", onEnd);
-  }, [bookingOpen, bookingExpanded]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [popupPhase]);
 
   useEffect(() => {
-    if (bookingContentIn) bookingCloseBtnRef.current?.focus();
-  }, [bookingContentIn]);
+    if (popupContentIn) popupCloseBtnRef.current?.focus();
+  }, [popupContentIn]);
 
   useEffect(() => {
-    if (!bookingOpen) return;
+    if (popupPhase === "closed") return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeBooking();
+      if (e.key === "Escape") closePopup();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookingOpen]);
+  }, [popupPhase]);
 
   useEffect(() => {
     if (!ready) return;
@@ -798,48 +927,55 @@ export function SiteScene() {
         }
 
         // ---------- меню на клинке (вертикальное, постоянное) ----------
-        if (heroMenu > 0) {
-          bladeMesh.updateWorldMatrix(true, false);
-          tmp.set(0, -2.35, 0.08).applyMatrix4(bladeMesh.matrixWorld).project(camera);
-          const sx = (tmp.x * 0.5 + 0.5) * window.innerWidth;
-          // 28% ширины экрана нормально смотрится на десктопе (~360px на
-          // 1280px), но на телефоне (390px) даёт всего ~109px — подписи
-          // ломаются на каждом слове. Снизу зажимаем разумным минимумом,
-          // сверху — чтобы не расползалось на весь широкий десктоп-экран.
-          const wNav = clamp(window.innerWidth * 0.42, 230, 380);
-          const pad = 16;
-          // Сдвиг меню левее на 30% его собственной ширины — применяем
-          // ПОСЛЕ вписывания в экран, а не до: если применить до, на узких
-          // экранах якорь (sx) часто настолько близко к правому краю, что
-          // ограничение "не вылезай вправо" полностью съедает сдвиг влево
-          // (именно так и было на мобильном — 30% считались, но тут же
-          // перекрывались этим же clamp'ом). Сдвигаем уже вписанную позицию,
-          // ограничивая только слева, чтобы не улететь за левый край.
-          const fitted = clamp(sx - wNav * 0.42, pad, window.innerWidth - wNav - pad);
-          const navLeft = Math.max(pad, fitted - wNav * 0.3);
-          heroNavEl.style.left = navLeft + "px";
-          heroNavEl.style.width = wNav + "px";
-          heroNavEl.style.opacity = "1";
-        } else {
-          heroNavEl.style.opacity = "0";
+        // Пока меню свёрнуто в док (navCollapsedRef) — этот блок вообще не
+        // трогает heroNavEl/капсулы: позиционирование, opacity, лупа,
+        // побуквенный цвет текста полностью отдаются CSS-классу .heroNavDock
+        // + multi-element FLIP (см. useLayoutEffect выше в компоненте).
+        // Раскрытие обратно возвращает управление сюда на следующий же кадр.
+        if (!navCollapsedRef.current) {
+          if (heroMenu > 0) {
+            bladeMesh.updateWorldMatrix(true, false);
+            tmp.set(0, -2.35, 0.08).applyMatrix4(bladeMesh.matrixWorld).project(camera);
+            const sx = (tmp.x * 0.5 + 0.5) * window.innerWidth;
+            // 28% ширины экрана нормально смотрится на десктопе (~360px на
+            // 1280px), но на телефоне (390px) даёт всего ~109px — подписи
+            // ломаются на каждом слове. Снизу зажимаем разумным минимумом,
+            // сверху — чтобы не расползалось на весь широкий десктоп-экран.
+            const wNav = clamp(window.innerWidth * 0.42, 230, 380);
+            const pad = 16;
+            // Сдвиг меню левее на 30% его собственной ширины — применяем
+            // ПОСЛЕ вписывания в экран, а не до: если применить до, на узких
+            // экранах якорь (sx) часто настолько близко к правому краю, что
+            // ограничение "не вылезай вправо" полностью съедает сдвиг влево
+            // (именно так и было на мобильном — 30% считались, но тут же
+            // перекрывались этим же clamp'ом). Сдвигаем уже вписанную позицию,
+            // ограничивая только слева, чтобы не улететь за левый край.
+            const fitted = clamp(sx - wNav * 0.42, pad, window.innerWidth - wNav - pad);
+            const navLeft = Math.max(pad, fitted - wNav * 0.3);
+            heroNavEl.style.left = navLeft + "px";
+            heroNavEl.style.width = wNav + "px";
+            heroNavEl.style.opacity = "1";
+          } else {
+            heroNavEl.style.opacity = "0";
+          }
+          heroLinks.forEach((a, i) => {
+            const lt = clamp((heroMenu - i * 0.05) / (1 - i * 0.05), 0, 1);
+            a.style.opacity = String(lt);
+            // Как только появление закончилось — снимаем инлайновый transform
+            // полностью (а не выставляем translateX(0)): иначе он на каждом
+            // кадре перебивает CSS-hover капсулы (:hover задаёт translateX(4px),
+            // но инлайн-стиль всегда сильнее правил из таблицы стилей).
+            a.style.transform = lt > 0.999 ? "" : `translateX(${(1 - lt) * 22}px)`;
+          });
+          heroNavEl.style.pointerEvents = heroMenu > 0.6 ? "auto" : "none";
         }
-        heroLinks.forEach((a, i) => {
-          const lt = clamp((heroMenu - i * 0.05) / (1 - i * 0.05), 0, 1);
-          a.style.opacity = String(lt);
-          // Как только появление закончилось — снимаем инлайновый transform
-          // полностью (а не выставляем translateX(0)): иначе он на каждом
-          // кадре перебивает CSS-hover капсулы (:hover задаёт translateX(4px),
-          // но инлайн-стиль всегда сильнее правил из таблицы стилей).
-          a.style.transform = lt > 0.999 ? "" : `translateX(${(1 - lt) * 22}px)`;
-        });
-        heroNavEl.style.pointerEvents = heroMenu > 0.6 ? "auto" : "none";
         if (isHero) {
           hintEl!.style.opacity = String(1 - seg(p, 0, 0.12));
         }
 
         renderer.render(scene, camera);
 
-        if (heroMenu > 0) {
+        if (heroMenu > 0 && !navCollapsedRef.current) {
           colorSampleAcc += dt;
           if (colorSampleAcc >= COLOR_SAMPLE_INTERVAL) {
             colorSampleAcc = 0;
@@ -958,101 +1094,114 @@ export function SiteScene() {
         </div>
       )}
 
-      <nav ref={heroNavRef} className={styles.heroNav}>
+      <nav ref={heroNavRef} className={`${styles.heroNav} ${dockMode ? styles.heroNavDock : ""}`}>
+        {/* Раньше — ::before на .heroNav. Теперь настоящий элемент: чтобы
+            её можно было измерить (getBoundingClientRect) и провести через
+            тот же multi-element FLIP, что и капсулы — иначе поворот
+            "вертикальная -> горизонтальная" нечем было бы анимировать. */}
+        <div ref={spineRef} className={styles.spine} />
         {NAV_ITEMS.map((item, i) => {
-          const isBooking = item.key === "booking";
+          const Icon = item.Icon;
           return (
-            <Link
+            <div
               key={item.href}
-              href={item.href}
-              ref={(el) => { heroLinkRefs.current[i] = el; }}
-              onClick={isBooking ? openBooking : undefined}
-              // Пока попап открыт, реальная капсула визуально не нужна —
-              // попап и есть она же, только увеличенная. visibility (не
-              // opacity) — чтобы не спорить с per-frame `a.style.opacity`
-              // из WebGL-цикла выше (та трогает только opacity).
-              className={isBooking && bookingOpen ? styles.navItemHidden : undefined}
+              ref={(el) => { navWrapRefs.current[i] = el; }}
+              className={`${styles.navItemWrap} ${item.key === "booking" ? styles.navItemFeatured : ""}`}
+              style={{ order: item.dockOrder }}
             >
-              <canvas
-                ref={(el) => { heroLensRefs.current[i] = el; }}
-                className={styles.lens}
-                aria-hidden="true"
-              />
-              <span className={styles.num}>
-                {[...item.num].map((ch, ci) => (
-                  <span key={ci} className={styles.numChar}>{ch}</span>
-                ))}
-              </span>
-              <span className={styles.lbl}>
-                {[...nav(item.key)].map((ch, ci) => (
-                  <span key={ci} className={styles.lblChar}>{ch}</span>
-                ))}
-              </span>
-            </Link>
+              <Link
+                href={item.href}
+                ref={(el) => { heroLinkRefs.current[i] = el; }}
+                onClick={(e) => handleNavClick(e, i)}
+                // Пока открыт ЕГО попап, реальная капсула/иконка визуально
+                // не нужна — попап и есть она же, только увеличенная.
+                // visibility (не opacity) — чтобы не спорить с per-frame
+                // `a.style.opacity` из WebGL-цикла (та трогает только
+                // opacity, и то лишь пока меню не свёрнуто в док).
+                className={activeIndex === i ? styles.navItemHidden : undefined}
+              >
+                <canvas
+                  ref={(el) => { heroLensRefs.current[i] = el; }}
+                  className={styles.lens}
+                  aria-hidden="true"
+                />
+                <span className={styles.num}>
+                  {[...item.num].map((ch, ci) => (
+                    <span key={ci} className={styles.numChar}>{ch}</span>
+                  ))}
+                </span>
+                <span className={styles.lbl}>
+                  {[...nav(item.key)].map((ch, ci) => (
+                    <span key={ci} className={styles.lblChar}>{ch}</span>
+                  ))}
+                </span>
+                <span className={styles.navIcon}>
+                  <Icon width={22} height={22} />
+                </span>
+              </Link>
+              <span className={styles.navCaption}>{nav(item.key)}</span>
+            </div>
           );
         })}
       </nav>
 
-      {bookingOpen && (
-        <div
-          className={`${styles.bookingOverlay} ${bookingExpanded ? styles.bookingOverlayIn : ""}`}
-          onClick={closeBooking}
-        >
+      {activeIndex !== null && popupPhase !== "closed" && (() => {
+        const item = NAV_ITEMS[activeIndex];
+        const titles = { booking: tBooking("title"), bio: tBio("title"), price: tPrice("title"), portfolio: tPortfolio("title") } as const;
+        const PopupBody = { booking: BookingFlow, bio: BioFlow, price: PriceFlow, portfolio: PortfolioFlow }[item.key];
+        return (
           <div
-            ref={bookingPanelRef}
-            className={styles.bookingPanel}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="booking-popup-title"
-            onClick={(e) => e.stopPropagation()}
-            style={
-              !bookingExpanded && bookingOrigin
-                ? {
-                    left: bookingOrigin.left,
-                    top: bookingOrigin.top,
-                    width: bookingOrigin.width,
-                    height: bookingOrigin.height,
-                    borderRadius: "999px",
-                  }
-                : undefined
-            }
+            className={`${styles.bookingOverlay} ${popupPhase === "open" ? styles.bookingOverlayIn : ""}`}
+            onClick={closePopup}
           >
-            {/* "Эхо" кнопки — то же число+подпись, что и в капсуле меню.
-                Видно, пока контент попапа ещё/уже не показан (в начале
-                открытия и в конце закрытия), и кроссфейдит с ним в обе
-                стороны. Без этого геометрия честно доезжает до размера
-                кнопки (проверено покадрово), но выглядит как сжимающийся
-                пустой блик — подпись реальной капсулы иначе появляется
-                рывком только в момент unmount. С эхом к моменту, когда
-                панель уже размером с кнопку, там уже видна ЕЁ подпись —
-                и переключение на настоящую капсулу становится незаметным. */}
-            <div className={`${styles.bookingEcho} ${bookingContentIn ? styles.bookingEchoOut : ""}`}>
-              <span className={styles.bookingEchoNum}>{NAV_ITEMS[0].num}</span>
-              <span className={styles.bookingEchoLbl}>{nav("booking")}</span>
-            </div>
-            <div className={`${styles.bookingContent} ${bookingContentIn ? styles.bookingContentIn : ""}`}>
-              <button
-                ref={bookingCloseBtnRef}
-                type="button"
-                className={styles.bookingClose}
-                onClick={closeBooking}
-                aria-label={tBooking("close")}
-              >
-                ×
-              </button>
-              <h2 id="booking-popup-title" className={styles.bookingTitle}>
-                {tBooking("title")}
-              </h2>
-              {/* Календарь дня + сетка времени (src/lib/shop-time.ts +
-                  /api/booking/month, /api/booking/slots) — реальная
-                  доступность по WorkingHours/TimeOff/Booking. Выбор
-                  услуги и сама отправка записи — следующая задача,
-                  здесь останавливаемся на выборе даты/времени. */}
-              {bookingContentIn && <BookingFlow />}
+            <div
+              ref={popupPanelRef}
+              className={styles.bookingPanel}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="site-popup-title"
+              onClick={(e) => e.stopPropagation()}
+              style={
+                (popupPhase === "opening" || popupPhase === "closing") && popupOrigin
+                  ? {
+                      left: popupOrigin.left,
+                      top: popupOrigin.top,
+                      width: popupOrigin.width,
+                      height: popupOrigin.height,
+                      borderRadius: "999px",
+                    }
+                  : undefined
+              }
+            >
+              {/* "Эхо" кнопки — то же число+подпись, что и в капсуле/иконке
+                  меню. Видно, пока контент попапа ещё/уже не показан (в
+                  начале открытия и в конце закрытия), и кроссфейдит с ним в
+                  обе стороны — без этого геометрия честно доезжает до
+                  размера источника, но выглядит как сжимающийся пустой
+                  блик, а подпись появляется рывком только в момент unmount. */}
+              <div className={`${styles.bookingEcho} ${popupContentIn ? styles.bookingEchoOut : ""}`}>
+                <span className={styles.bookingEchoNum}>{item.num}</span>
+                <span className={styles.bookingEchoLbl}>{nav(item.key)}</span>
+              </div>
+              <div className={`${styles.bookingContent} ${popupContentIn ? styles.bookingContentIn : ""}`}>
+                <button
+                  ref={popupCloseBtnRef}
+                  type="button"
+                  className={styles.bookingClose}
+                  onClick={closePopup}
+                  aria-label={tBooking("close")}
+                >
+                  ×
+                </button>
+                <h2 id="site-popup-title" className={styles.bookingTitle}>
+                  {titles[item.key]}
+                </h2>
+                {popupContentIn && <PopupBody />}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {heroFirstVisit && (
         <div ref={hintRef} className={styles.hint}>
