@@ -222,6 +222,17 @@ export function SiteScene() {
     const before = flipBeforeRef.current;
     flipBeforeRef.current = null;
     if (!before || prefersReducedMotion()) return;
+    // Только сворачивание (vertical -> док) едет позиционным FLIP'ом —
+    // капсулы разлетаются по своим местам в доке. Разворачивание обратно
+    // (док -> vertical, после закрытия попапа) — по требованию БЕЗ
+    // движения: капсула просто на месте меняет форму/контент обратно
+    // (это уже отдельно анимируется через transition на .heroNav a —
+    // width/height/padding/border-radius/opacity иконки↔текста), никуда
+    // не "летит" через экран. Спина — не в списке ниже вовсе: её
+    // left/top/width/height уже сами по себе transitionable CSS-свойства
+    // (см. .spine) и не нуждаются в компенсации, что дублировало бы
+    // движение вторым слоем поверх её же CSS-перехода.
+    if (!dockMode) return;
     const apply = (el: HTMLElement | null, beforeRect: Rect | null) => {
       if (!el || !beforeRect) return;
       const after = el.getBoundingClientRect();
@@ -232,7 +243,6 @@ export function SiteScene() {
       el.style.transform = `translate(${dx}px, ${dy}px)`;
     };
     navWrapRefs.current.forEach((el, i) => apply(el, before.items[i]));
-    apply(spineRef.current, before.spine);
     // Один общий forced reflow на все элементы разом — фиксирует
     // "before"-кадр (transition:none применился) до того, как что-либо
     // ещё успеет его снять.
@@ -247,7 +257,6 @@ export function SiteScene() {
     };
     const raf = requestAnimationFrame(() => {
       navWrapRefs.current.forEach(clear);
-      clear(spineRef.current);
     });
     return () => cancelAnimationFrame(raf);
   }, [dockMode]);
