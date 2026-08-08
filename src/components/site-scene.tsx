@@ -160,10 +160,18 @@ export function SiteScene() {
         переход. Работает в обе стороны (в док и обратно) одним и тем же
         кодом, т.к. просто использует текущее (any) состояние как "before".
 
-        dockMode — не отдельный флаг, а производное от activeIndex !== null:
-        сворачивание происходит РОВНО на первом клике (кто угодно из 4),
-        разворачивание обратно — когда ПОСЛЕДНИЙ открытый попап закрыт БЕЗ
-        выбора следующего пункта (pendingIndexRef пуст).
+        dockMode — отдельный useState (НЕ производное от activeIndex),
+        выставляется явно в тех же местах, где меняется activeIndex:
+        true — на первом клике (кто угодно из 4), false — сразу в
+        closePopup(), СИНХРОННО с началом popupPhase="closing", а не
+        когда попап реально доедет до конца. Раньше dockMode был derived
+        (`activeIndex !== null`) и становился false только в
+        finalizeClose() — т.е. ПОСЛЕ transitionend попапа (~500мс), из-за
+        чего реверс-FLIP дока стартовал с заметной паузой после того, как
+        попап уже схлопнулся, вместо того чтобы лететь одновременно.
+        Переключение между двумя открытыми попапами (closing одного ->
+        opening другого) dockMode вообще не трогает — он остаётся true
+        весь цикл.
      ============================================================ */
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [popupPhase, setPopupPhase] = useState<"closed" | "opening" | "open" | "closing">("closed");
@@ -173,7 +181,7 @@ export function SiteScene() {
   // а не ref: правило react-hooks/refs не даёт читать ref.current во
   // время рендера, да и по сути значение влияет на то, что рисуется.
   const [popupOrigin, setPopupOrigin] = useState<Rect | null>(null);
-  const dockMode = activeIndex !== null;
+  const [dockMode, setDockMode] = useState(false);
 
   const popupPanelRef = useRef<HTMLDivElement>(null);
   const popupCloseBtnRef = useRef<HTMLButtonElement>(null);
@@ -315,7 +323,11 @@ export function SiteScene() {
   }, [dockMode]);
 
   function finalizeClose(closedIndex: number | null) {
-    captureFlipBefore(); // текущие (доковые) позиции — до отката в вертикальное меню
+    // captureFlipBefore()/setDockMode(false) здесь больше НЕ вызываются —
+    // реверс-FLIP дока запущен раньше, синхронно с началом закрытия попапа
+    // (см. closePopup()), чтобы обе анимации шли одновременно, без паузы.
+    // Этот вызов — только финальная уборка ПОСЛЕ того, как попап реально
+    // доехал (transitionend) или (reduced-motion) сразу.
     setActiveIndex(null);
     setPopupPhase("closed");
     // Осознанное исключение: возврат скролла страницы — сайд-эффект внешней
@@ -354,6 +366,7 @@ export function SiteScene() {
       document.body.style.overflow = "hidden";
       setPopupOrigin(rect);
       setActiveIndex(index);
+      setDockMode(true);
       setPopupPhase(reduced ? "open" : "opening");
       setPopupContentIn(reduced);
     } else if (reduced) {
@@ -382,7 +395,15 @@ export function SiteScene() {
     pendingIndexRef.current = null; // обычное закрытие — без следующего пункта
     if (prefersReducedMotion()) {
       finalizeClose(activeIndex);
+      setDockMode(false);
     } else {
+      // Реверс-FLIP дока запускаем СРАЗУ, не дожидаясь transitionend
+      // попапа (см. finalizeClose) — обе анимации (схлопывание попапа и
+      // разлёт 3 капсул в вертикальное меню) должны идти параллельно.
+      // activeIndex пока не трогаем: попап остаётся в DOM и доигрывает
+      // свою собственную closing-анимацию к popupOrigin.
+      captureFlipBefore();
+      setDockMode(false);
       setPopupPhase("closing");
     }
   }
