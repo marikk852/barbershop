@@ -1231,12 +1231,28 @@ export function SiteScene() {
                 href={item.href}
                 ref={(el) => { heroLinkRefs.current[i] = el; }}
                 onClick={(e) => handleNavClick(e, i)}
-                // Пока открыт ЕГО попап, реальная капсула/иконка визуально
-                // не нужна — попап и есть она же, только увеличенная.
-                // visibility (не opacity) — чтобы не спорить с per-frame
-                // `a.style.opacity` из WebGL-цикла (та трогает только
-                // opacity, и то лишь пока меню не свёрнуто в док).
-                className={activeIndex === i ? styles.navItemHidden : undefined}
+                // Пока открыт ЕГО попап (opening/open), реальная капсула/
+                // иконка визуально не нужна — попап и есть она же, только
+                // увеличенная. visibility (не opacity) — чтобы не спорить
+                // с per-frame `a.style.opacity` из WebGL-цикла (та трогает
+                // только opacity, и то лишь пока меню не свёрнуто в док).
+                //
+                // НАРОЧНО не скрываем на "closing": раньше пункт оставался
+                // invisible вплоть до finalizeClose (конец всей анимации),
+                // пока его собственный CSS-переход геометрии (circle -> pill,
+                // .heroNav a: width/height/padding/border-radius, 0.5s) шёл
+                // ВЕСЬ ЭТО ВРЕМЯ невидимо. На практике браузеры ненадёжно
+                // доигрывают CSS-transition на visibility:hidden элементе —
+                // переход может не стартовать/не завершиться, пока элемент
+                // скрыт, и "доедет" только при следующем пересчёте стилей
+                // (hover, resize, что угодно) — снаружи это выглядело как
+                // капсула, застрявшая маленькой и плоской ("серой") на
+                // произвольное время, а потом рывком добор до стеклянного
+                // вида. Раскрываем сразу с началом closing — тогда её
+                // возврат в вертикаль анимируется ВСЁ ВРЕМЯ на виду, точно
+                // так же, как у остальных 3 капсул (которые никогда не
+                // скрываются и поэтому всегда анимируются гладко).
+                className={activeIndex === i && (popupPhase === "opening" || popupPhase === "open") ? styles.navItemHidden : undefined}
               >
                 <canvas
                   ref={(el) => { heroLensRefs.current[i] = el; }}
@@ -1274,7 +1290,7 @@ export function SiteScene() {
           >
             <div
               ref={popupPanelRef}
-              className={`${styles.bookingPanel} ${popupPhase === "closing" ? styles.bookingPanelClosing : ""}`}
+              className={styles.bookingPanel}
               role="dialog"
               aria-modal="true"
               aria-labelledby="site-popup-title"
