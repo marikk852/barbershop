@@ -195,36 +195,6 @@ export function SiteScene() {
   const navWrapRefs = useRef<(HTMLDivElement | null)[]>([]);
   const spineRef = useRef<HTMLDivElement>(null);
   const flipBeforeRef = useRef<{ items: (Rect | null)[]; links: (Rect | null)[]; spine: Rect | null } | null>(null);
-  // Кэш "натурального" (устоявшегося, вертикального, вне дока) размера
-  // каждой капсулы, в px — заполняется useLayoutEffect'ом ниже ОДИН РАЗ
-  // при монтировании (плюс на resize), НЕ в момент заморозки при
-  // закрытии. Нужен как target при снятии заморозки width/height (см.
-  // тот useEffect дальше): `.heroNav a` имеет `width: fit-content` —
-  // ключевое слово, а не длина, CSS-transition к/от него в принципе не
-  // анимируется (браузер прыгает мгновенно, тот же класс проблемы, что
-  // и с `height: auto` — см. комментарий у .spine). Явный px вместо ""
-  // это лечит — НО замерить его синхронно ПРЯМО ПЕРЕД/ВО ВРЕМЯ заморозки
-  // (как было в первой версии фикса) НЕЛЬЗЯ: fit-content = текст +
-  // padding, а padding САМ одновременно анимируется своим CSS-
-  // transition'ом (0.5s) — синхронный getBoundingClientRect сразу после
-  // смены класса ловит СТАРТОВОЕ (ещё не проинтерполированное) значение
-  // padding, а не целевое (проверено изолированным тестом: замер сразу
-  // после classList.add и даже кадром позже — всё ещё старое значение).
-  // Поэтому меряем ОДИН РАЗ, пока капсула гарантированно НЕ в процессе
-  // перехода — сразу после монтирования (переходов ещё не было).
-  const linkNaturalSizeRef = useRef<({ width: number; height: number } | null)[]>([]);
-  useLayoutEffect(() => {
-    const measure = () => {
-      heroLinkRefs.current.forEach((a, i) => {
-        if (!a) return;
-        const r = a.getBoundingClientRect();
-        if (r.width > 0) linkNaturalSizeRef.current[i] = { width: r.width, height: r.height };
-      });
-    };
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, []);
   // WebGL-цикл (setup3D/frame ниже) должен перестать сам позиционировать
   // .heroNav, пока меню свёрнуто в док — читает этот ref каждый кадр
   // (не state — незачем перерендеривать React-дерево ради значения,
@@ -300,21 +270,52 @@ export function SiteScene() {
     // свойства (см. .spine) и не нуждаются в компенсации, что дублировало
     // бы движение вторым слоем поверх её же CSS-перехода.
     //
-    // Замораживаем width/height самой капсулы (<a>) на "before"-значении
-    // ДО измерения .navItemWrap — иначе getBoundingClientRect уже отдаёт
-    // ЦЕЛЕВУЮ (финальную) ширину капсулы (круг 52px <-> пилюля ~194px),
-    // хотя её собственный CSS-переход физически ещё не стартовал. Из-за
-    // этого расхождения компенсация считалась по неверной точке, и
-    // капсулы резко уводило в сторону (вплоть до отрицательных координат,
-    // за левый край экрана) вместо плавного полёта. Отпускаем вместе с
-    // transform на следующем кадре — переход по ширине/высоте после этого
-    // доигрывает сам, тем же transition на .heroNav a, что и раньше.
+    // В ДОК (dockMode -> true): замораживаем width/height самой капсулы
+    // (<a>) на "before"-значении ДО измерения .navItemWrap — иначе
+    // getBoundingClientRect уже отдаёт ЦЕЛЕВУЮ (финальную) ширину капсулы
+    // (пилюля ~194px -> круг 52px), хотя её собственный CSS-переход
+    // физически ещё не стартовал. Из-за этого расхождения компенсация
+    // считалась бы по неверной точке. Отпускаем вместе с transform на
+    // следующем кадре — переход по ширине/высоте после этого доигрывает
+    // сам, тем же transition на .heroNav a (см. useEffect ниже). Целевой
+    // размер здесь — explicit px (.heroNavDock a {width:52/64px}), не
+    // ключевое слово, так что transition к нему честно анимируется.
+    //
+    // ОБРАТНО В ВЕРТИКАЛЬ (dockMode -> false): size/форму капсулы И
+    // линзу вообще НЕ анимируем — оставляем только полёт (transform на
+    // .navItemWrap ниже). Причина не про желание "попроще": честная
+    // анимация width/height сюда технически ненадёжна — `.heroNav a`
+    // использует `width: fit-content`, а он зависит от padding, который
+    // САМ одновременно анимируется своим transition'ом; синхронно
+    // замерить корректный target в принципе нельзя (проверено и живым
+    // кодом, и изолированным HTML-тестом вне React — см. память
+    // проекта), из-за чего то щёлкало мгновенно, то давало случайные
+    // промежуточные числа, то в Safari капсула на кадр оставалась
+    // совсем пустой. По прямой просьбе: капсула должна появляться СРАЗУ
+    // в финальном виде, без паузы — тут просто НЕ трогаем width/height
+    // вообще (остаются "" — растут по fit-content мгновенно), сужаем
+    // transition капсулы до свойств, которым анимация ещё нужна (hover/
+    // focus), исключая width/height/padding/border-radius, и ТАК ЖЕ
+    // мгновенно (transition:none) ставим линзе финальную opacity:1 —
+    // без этого она сама доигрывала бы свои 0.3s fade-in уже ПОСЛЕ того,
+    // как форма/текст готовы, и капсула всё равно казалась бы "серой"
+    // ещё какое-то время.
     heroLinkRefs.current.forEach((a, i) => {
-      const r = before.links[i];
-      if (!a || !r) return;
-      a.style.transition = "none";
-      a.style.width = `${r.width}px`;
-      a.style.height = `${r.height}px`;
+      if (!a) return;
+      const lens = heroLensRefs.current[i];
+      if (dockMode) {
+        const r = before.links[i];
+        if (!r) return;
+        a.style.transition = "none";
+        a.style.width = `${r.width}px`;
+        a.style.height = `${r.height}px`;
+      } else {
+        a.style.transition = "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease, box-shadow 0.25s ease";
+        if (lens) {
+          lens.style.transition = "none";
+          lens.style.opacity = "1";
+        }
+      }
     });
     void document.body.offsetHeight;
 
@@ -344,37 +345,24 @@ export function SiteScene() {
       navWrapRefs.current.forEach(clear);
       heroLinkRefs.current.forEach((a, i) => {
         if (!a) return;
+        // Возвращаем полный transition-список из CSS-класса в обоих
+        // случаях (нужен дальше для hover/focus в любом состоянии).
         a.style.transition = "";
-        // В доке (.heroNavDock a {width: 52/64px}) target — обычная
-        // длина, "" (откат на CSS) уже честно анимируется, трогать не
-        // нужно. А вот в вертикали (.heroNav a {width: fit-content}) —
-        // ключевое слово, "" щёлкнуло бы мгновенно (см. подробности у
-        // linkNaturalSizeRef выше) — там подставляем закэшированный
-        // натуральный размер явным px, чтобы transition интерполировал
-        // между двумя конкретными числами.
-        const target = dockMode ? null : linkNaturalSizeRef.current[i];
-        a.style.width = target ? `${target.width}px` : "";
-        a.style.height = target ? `${target.height}px` : "";
+        if (dockMode) {
+          // В доке: отпускаем ширину/высоту в "" — откат на
+          // .heroNavDock a {width:52/64px} (обычная длина, не ключевое
+          // слово), CSS-transition к ней уже честно анимирует.
+          a.style.width = "";
+          a.style.height = "";
+        }
+        // В вертикали (!dockMode) width/height не трогаем вообще — они
+        // не замораживались (см. useLayoutEffect выше, ветка else), уже
+        // "" и уже на финальном fit-content значении с первого кадра.
+        const lens = heroLensRefs.current[i];
+        if (lens) lens.style.transition = "";
       });
     });
-    // Через немного больше, чем длится сам CSS-переход width/height
-    // (0.5s, см. .heroNav a) — возвращаем инлайн-px обратно в "" (снова
-    // fit-content), иначе капсула навсегда останется на зафиксированном
-    // при ЭТОМ конкретном открытии/закрытии размере и перестанет
-    // реагировать на возможный ресайз окна, пока меню не пересоберётся
-    // заново на следующем dockMode-цикле. Запас (620мс вместо 500мс) —
-    // не впритык, чтобы не обрезать хвост перехода.
-    const cleanupTimer = window.setTimeout(() => {
-      heroLinkRefs.current.forEach((a) => {
-        if (!a) return;
-        a.style.width = "";
-        a.style.height = "";
-      });
-    }, 620);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.clearTimeout(cleanupTimer);
-    };
+    return () => cancelAnimationFrame(raf);
   }, [dockMode]);
 
   function finalizeClose(closedIndex: number | null) {
@@ -414,6 +402,12 @@ export function SiteScene() {
       // .heroNavDock своим приоритетом инлайн-стиля.
       heroNavRef.current?.removeAttribute("style");
       heroLinkRefs.current.forEach((a) => a?.removeAttribute("style"));
+      // Линзе тоже: на закрытии (closePopup) ей ставится инлайн
+      // opacity:"1" в обход её собственного transition (см. useLayoutEffect
+      // ниже) — если не снять, он навсегда перебьёт `.heroNavDock .lens
+      // {opacity:0}` (инлайн всегда сильнее класса), и доковые круглые
+      // иконки начали бы просвечивать линзой вместо чистого SVG-значка.
+      heroLensRefs.current.forEach((lens) => lens?.removeAttribute("style"));
       prevOverflowRef.current = document.body.style.overflow;
       // См. пояснение в finalizeClose — тот же осознанный случай, только
       // в обратную сторону (лочим скролл при открытии).
