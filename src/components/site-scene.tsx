@@ -195,6 +195,36 @@ export function SiteScene() {
   const navWrapRefs = useRef<(HTMLDivElement | null)[]>([]);
   const spineRef = useRef<HTMLDivElement>(null);
   const flipBeforeRef = useRef<{ items: (Rect | null)[]; links: (Rect | null)[]; spine: Rect | null } | null>(null);
+  // Кэш "натурального" (устоявшегося, вертикального, вне дока) размера
+  // каждой капсулы, в px — заполняется useLayoutEffect'ом ниже ОДИН РАЗ
+  // при монтировании (плюс на resize), НЕ в момент заморозки при
+  // закрытии. Нужен как target при снятии заморозки width/height (см.
+  // тот useEffect дальше): `.heroNav a` имеет `width: fit-content` —
+  // ключевое слово, а не длина, CSS-transition к/от него в принципе не
+  // анимируется (браузер прыгает мгновенно, тот же класс проблемы, что
+  // и с `height: auto` — см. комментарий у .spine). Явный px вместо ""
+  // это лечит — НО замерить его синхронно ПРЯМО ПЕРЕД/ВО ВРЕМЯ заморозки
+  // (как было в первой версии фикса) НЕЛЬЗЯ: fit-content = текст +
+  // padding, а padding САМ одновременно анимируется своим CSS-
+  // transition'ом (0.5s) — синхронный getBoundingClientRect сразу после
+  // смены класса ловит СТАРТОВОЕ (ещё не проинтерполированное) значение
+  // padding, а не целевое (проверено изолированным тестом: замер сразу
+  // после classList.add и даже кадром позже — всё ещё старое значение).
+  // Поэтому меряем ОДИН РАЗ, пока капсула гарантированно НЕ в процессе
+  // перехода — сразу после монтирования (переходов ещё не было).
+  const linkNaturalSizeRef = useRef<({ width: number; height: number } | null)[]>([]);
+  useLayoutEffect(() => {
+    const measure = () => {
+      heroLinkRefs.current.forEach((a, i) => {
+        if (!a) return;
+        const r = a.getBoundingClientRect();
+        if (r.width > 0) linkNaturalSizeRef.current[i] = { width: r.width, height: r.height };
+      });
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
   // WebGL-цикл (setup3D/frame ниже) должен перестать сам позиционировать
   // .heroNav, пока меню свёрнуто в док — читает этот ref каждый кадр
   // (не state — незачем перерендеривать React-дерево ради значения,
@@ -312,14 +342,39 @@ export function SiteScene() {
     };
     const raf = requestAnimationFrame(() => {
       navWrapRefs.current.forEach(clear);
-      heroLinkRefs.current.forEach((a) => {
+      heroLinkRefs.current.forEach((a, i) => {
         if (!a) return;
         a.style.transition = "";
+        // В доке (.heroNavDock a {width: 52/64px}) target — обычная
+        // длина, "" (откат на CSS) уже честно анимируется, трогать не
+        // нужно. А вот в вертикали (.heroNav a {width: fit-content}) —
+        // ключевое слово, "" щёлкнуло бы мгновенно (см. подробности у
+        // linkNaturalSizeRef выше) — там подставляем закэшированный
+        // натуральный размер явным px, чтобы transition интерполировал
+        // между двумя конкретными числами.
+        const target = dockMode ? null : linkNaturalSizeRef.current[i];
+        a.style.width = target ? `${target.width}px` : "";
+        a.style.height = target ? `${target.height}px` : "";
+      });
+    });
+    // Через немного больше, чем длится сам CSS-переход width/height
+    // (0.5s, см. .heroNav a) — возвращаем инлайн-px обратно в "" (снова
+    // fit-content), иначе капсула навсегда останется на зафиксированном
+    // при ЭТОМ конкретном открытии/закрытии размере и перестанет
+    // реагировать на возможный ресайз окна, пока меню не пересоберётся
+    // заново на следующем dockMode-цикле. Запас (620мс вместо 500мс) —
+    // не впритык, чтобы не обрезать хвост перехода.
+    const cleanupTimer = window.setTimeout(() => {
+      heroLinkRefs.current.forEach((a) => {
+        if (!a) return;
         a.style.width = "";
         a.style.height = "";
       });
-    });
-    return () => cancelAnimationFrame(raf);
+    }, 620);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(cleanupTimer);
+    };
   }, [dockMode]);
 
   function finalizeClose(closedIndex: number | null) {
