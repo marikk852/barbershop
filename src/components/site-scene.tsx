@@ -195,6 +195,16 @@ export function SiteScene() {
   useEffect(() => {
     navCollapsedRef.current = dockMode;
   }, [dockMode]);
+  // Клинок продолжает медленно авто-вращаться, пока меню в доке (это его
+  // штатное поведение, см. autoSpin) — а значит, спроецированная на экран
+  // точка, к которой "приварено" вертикальное меню, за это время реально
+  // уезжает. WebGL-цикл ниже перестаёт ПРИМЕНЯТЬ left/width к .heroNav,
+  // пока навигация свёрнута (см. navCollapsedRef), но продолжает их
+  // СЧИТАТЬ каждый кадр и класть сюда — иначе в момент разворота обратно
+  // мы бы применили давно устаревшее значение (или "auto") и тут же поверх
+  // него — свежее посчитанное, что и давало видимый прыжок ("меню
+  // появляется не там, где должно, и потом резко едет на своё место").
+  const navPosRef = useRef({ left: 0, width: 0 });
 
   function captureFlipBefore() {
     flipBeforeRef.current = {
@@ -228,6 +238,21 @@ export function SiteScene() {
     const before = flipBeforeRef.current;
     flipBeforeRef.current = null;
     if (!before || prefersReducedMotion()) return;
+    if (!dockMode && heroNavRef.current) {
+      // Разворот обратно в вертикальное меню: WebGL-цикл сам не трогает
+      // heroNavEl, пока navCollapsedRef ещё не успел синхронизироваться
+      // (см. useEffect выше) — без этой явной установки .navItemWrap
+      // измерялся бы относительно "auto"-позиции nav (левый край, 0),
+      // а не относительно её РЕАЛЬНОЙ, актуальной (клинок продолжал
+      // авто-вращаться, пока меню было в доке) точки — именно из-за этого
+      // расхождения капсулы резко "телепортировались" в момент, когда
+      // WebGL-цикл на следующем кадре наконец применял свежее значение
+      // поверх уже неверно посчитанной анимации. navPosRef всегда свежий
+      // (считается каждый кадр независимо от дока, см. frame() ниже).
+      heroNavRef.current.style.left = `${navPosRef.current.left}px`;
+      heroNavRef.current.style.width = `${navPosRef.current.width}px`;
+      heroNavRef.current.style.opacity = "1";
+    }
     // Точное зеркало в обе стороны: сворачивание (vertical -> док) и
     // разворачивание обратно (док -> vertical, после закрытия попапа) —
     // одна и та же FLIP-компенсация, просто "before"/"after" меняются
@@ -988,37 +1013,48 @@ export function SiteScene() {
         }
 
         // ---------- меню на клинке (вертикальное, постоянное) ----------
-        // Пока меню свёрнуто в док (navCollapsedRef) — этот блок вообще не
-        // трогает heroNavEl/капсулы: позиционирование, opacity, лупа,
-        // побуквенный цвет текста полностью отдаются CSS-классу .heroNavDock
-        // + multi-element FLIP (см. useLayoutEffect выше в компоненте).
-        // Раскрытие обратно возвращает управление сюда на следующий же кадр.
-        if (!navCollapsedRef.current) {
-          if (heroMenu > 0) {
-            bladeMesh.updateWorldMatrix(true, false);
-            tmp.set(0, -2.35, 0.08).applyMatrix4(bladeMesh.matrixWorld).project(camera);
-            const sx = (tmp.x * 0.5 + 0.5) * window.innerWidth;
-            // 28% ширины экрана нормально смотрится на десктопе (~360px на
-            // 1280px), но на телефоне (390px) даёт всего ~109px — подписи
-            // ломаются на каждом слове. Снизу зажимаем разумным минимумом,
-            // сверху — чтобы не расползалось на весь широкий десктоп-экран.
-            const wNav = clamp(window.innerWidth * 0.42, 230, 380);
-            const pad = 16;
-            // Сдвиг меню левее на 30% его собственной ширины — применяем
-            // ПОСЛЕ вписывания в экран, а не до: если применить до, на узких
-            // экранах якорь (sx) часто настолько близко к правому краю, что
-            // ограничение "не вылезай вправо" полностью съедает сдвиг влево
-            // (именно так и было на мобильном — 30% считались, но тут же
-            // перекрывались этим же clamp'ом). Сдвигаем уже вписанную позицию,
-            // ограничивая только слева, чтобы не улететь за левый край.
-            const fitted = clamp(sx - wNav * 0.42, pad, window.innerWidth - wNav - pad);
-            const navLeft = Math.max(pad, fitted - wNav * 0.3);
+        // Позицию (navLeft/wNav) считаем КАЖДЫЙ кадр независимо от того,
+        // свёрнуто ли меню в док — клинок продолжает медленно авто-
+        // вращаться всё это время (autoSpin), и спроецированная точка
+        // "приварки" меню реально уезжает. Если не считать её всё это
+        // время, в момент разворота обратно применилось бы давно
+        // устаревшее (или вовсе не выставленное, "auto") значение, и
+        // менюR резко прыгало бы на актуальное — именно так выглядел баг
+        // "капсулы появляются не там и потом резко едут на своё место".
+        // Кладём результат в navPosRef (используется в реверс-FLIP,
+        // см. useLayoutEffect выше в компоненте), а вот ПРИМЕНЯЕМ к
+        // heroNavEl/капсулам — только когда меню НЕ в доке; пока
+        // свёрнуто, этим занимаются CSS-класс .heroNavDock + сам FLIP.
+        if (heroMenu > 0) {
+          bladeMesh.updateWorldMatrix(true, false);
+          tmp.set(0, -2.35, 0.08).applyMatrix4(bladeMesh.matrixWorld).project(camera);
+          const sx = (tmp.x * 0.5 + 0.5) * window.innerWidth;
+          // 28% ширины экрана нормально смотрится на десктопе (~360px на
+          // 1280px), но на телефоне (390px) даёт всего ~109px — подписи
+          // ломаются на каждом слове. Снизу зажимаем разумным минимумом,
+          // сверху — чтобы не расползалось на весь широкий десктоп-экран.
+          const wNav = clamp(window.innerWidth * 0.42, 230, 380);
+          const pad = 16;
+          // Сдвиг меню левее на 30% его собственной ширины — применяем
+          // ПОСЛЕ вписывания в экран, а не до: если применить до, на узких
+          // экранах якорь (sx) часто настолько близко к правому краю, что
+          // ограничение "не вылезай вправо" полностью съедает сдвиг влево
+          // (именно так и было на мобильном — 30% считались, но тут же
+          // перекрывались этим же clamp'ом). Сдвигаем уже вписанную позицию,
+          // ограничивая только слева, чтобы не улететь за левый край.
+          const fitted = clamp(sx - wNav * 0.42, pad, window.innerWidth - wNav - pad);
+          const navLeft = Math.max(pad, fitted - wNav * 0.3);
+          navPosRef.current.left = navLeft;
+          navPosRef.current.width = wNav;
+          if (!navCollapsedRef.current) {
             heroNavEl.style.left = navLeft + "px";
             heroNavEl.style.width = wNav + "px";
             heroNavEl.style.opacity = "1";
-          } else {
-            heroNavEl.style.opacity = "0";
           }
+        } else if (!navCollapsedRef.current) {
+          heroNavEl.style.opacity = "0";
+        }
+        if (!navCollapsedRef.current) {
           heroLinks.forEach((a, i) => {
             const lt = clamp((heroMenu - i * 0.05) / (1 - i * 0.05), 0, 1);
             a.style.opacity = String(lt);
