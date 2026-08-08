@@ -186,7 +186,7 @@ export function SiteScene() {
   const pendingIndexRef = useRef<number | null>(null);
   const navWrapRefs = useRef<(HTMLDivElement | null)[]>([]);
   const spineRef = useRef<HTMLDivElement>(null);
-  const flipBeforeRef = useRef<{ items: (Rect | null)[]; spine: Rect | null } | null>(null);
+  const flipBeforeRef = useRef<{ items: (Rect | null)[]; links: (Rect | null)[]; spine: Rect | null } | null>(null);
   // WebGL-цикл (setup3D/frame ниже) должен перестать сам позиционировать
   // .heroNav, пока меню свёрнуто в док — читает этот ref каждый кадр
   // (не state — незачем перерендеривать React-дерево ради значения,
@@ -199,6 +199,12 @@ export function SiteScene() {
   function captureFlipBefore() {
     flipBeforeRef.current = {
       items: navWrapRefs.current.map((el) => rectOf(el)),
+      // Геометрия самой капсулы (<a>) — отдельно от .navItemWrap. Нужна,
+      // чтобы на время FLIP-компенсации заморозить её width/height на
+      // "before"-значении (см. useLayoutEffect ниже) — иначе .navItemWrap
+      // меряется УЖЕ с целевой (финальной) шириной капсулы, хотя её
+      // собственный CSS-переход круг<->пилюля физически ещё не начался.
+      links: heroLinkRefs.current.map((el) => rectOf(el)),
       spine: rectOf(spineRef.current),
     };
   }
@@ -230,6 +236,25 @@ export function SiteScene() {
     // её left/top/width/height уже сами по себе transitionable CSS-
     // свойства (см. .spine) и не нуждаются в компенсации, что дублировало
     // бы движение вторым слоем поверх её же CSS-перехода.
+    //
+    // Замораживаем width/height самой капсулы (<a>) на "before"-значении
+    // ДО измерения .navItemWrap — иначе getBoundingClientRect уже отдаёт
+    // ЦЕЛЕВУЮ (финальную) ширину капсулы (круг 52px <-> пилюля ~194px),
+    // хотя её собственный CSS-переход физически ещё не стартовал. Из-за
+    // этого расхождения компенсация считалась по неверной точке, и
+    // капсулы резко уводило в сторону (вплоть до отрицательных координат,
+    // за левый край экрана) вместо плавного полёта. Отпускаем вместе с
+    // transform на следующем кадре — переход по ширине/высоте после этого
+    // доигрывает сам, тем же transition на .heroNav a, что и раньше.
+    heroLinkRefs.current.forEach((a, i) => {
+      const r = before.links[i];
+      if (!a || !r) return;
+      a.style.transition = "none";
+      a.style.width = `${r.width}px`;
+      a.style.height = `${r.height}px`;
+    });
+    void document.body.offsetHeight;
+
     const apply = (el: HTMLElement | null, beforeRect: Rect | null) => {
       if (!el || !beforeRect) return;
       const after = el.getBoundingClientRect();
@@ -254,6 +279,12 @@ export function SiteScene() {
     };
     const raf = requestAnimationFrame(() => {
       navWrapRefs.current.forEach(clear);
+      heroLinkRefs.current.forEach((a) => {
+        if (!a) return;
+        a.style.transition = "";
+        a.style.width = "";
+        a.style.height = "";
+      });
     });
     return () => cancelAnimationFrame(raf);
   }, [dockMode]);
