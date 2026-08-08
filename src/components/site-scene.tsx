@@ -1274,7 +1274,7 @@ export function SiteScene() {
           >
             <div
               ref={popupPanelRef}
-              className={styles.bookingPanel}
+              className={`${styles.bookingPanel} ${popupPhase === "closing" ? styles.bookingPanelClosing : ""}`}
               role="dialog"
               aria-modal="true"
               aria-labelledby="site-popup-title"
