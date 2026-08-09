@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   formatDateStr,
@@ -14,6 +14,14 @@ import styles from "./booking-flow.module.css";
 interface MonthData {
   workingHours: WorkingHoursRow[];
   timeOff: TimeOffRange[];
+}
+
+interface Service {
+  id: string;
+  nameRu: string;
+  nameRo: string;
+  durationMin: number;
+  priceCents: number;
 }
 
 type DayCell = { dateStr: string; day: number } | null;
@@ -51,6 +59,7 @@ function shiftMonth(month: string, delta: number): string {
 export function BookingFlow() {
   const locale = useLocale();
   const t = useTranslations("Booking");
+  const tPrice = useTranslations("Price");
 
   const today = useMemo(() => todayInShopTz(), []);
   const [visibleMonth, setVisibleMonth] = useState(() => today.slice(0, 7));
@@ -61,6 +70,28 @@ export function BookingFlow() {
   const [slots, setSlots] = useState<string[] | null>(null);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+
+  // Порядок шагов: дата → время (сетка ещё без привязки к услуге) →
+  // услуга. Выбор услуги персистится через смену даты (незачем
+  // переспрашивать то, что от даты не зависит) — сбрасывается явно
+  // только вместе со всем остальным при закрытии попапа (размонтирование).
+  const [services, setServices] = useState<Service[] | null>(null);
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  // true, если ранее выбранное время не пережило проверку по
+  // длительности только что выбранной услуги (см. эффект слотов ниже).
+  const [timeMismatch, setTimeMismatch] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/price")
+      .then((r) => r.json())
+      .then((d: { services: Service[] }) => {
+        if (!cancelled) setServices(d.services);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,18 +114,43 @@ export function BookingFlow() {
     };
   }, [visibleMonth]);
 
+  // Дата ЕСТЬ в зависимостях у сброса времени, услуга — только у
+  // перезапроса слотов (см. lastDateRef ниже: различаем "дата
+  // реально сменилась, время однозначно устарело" от "услуга
+  // сменилась, нужно ПРОВЕРИТЬ уже выбранное время, а не слепо
+  // сбрасывать" — иначе выбор услуги после времени всегда сбрасывал бы
+  // это время, даже если оно прекрасно влезает и по новой длительности).
+  const lastDateRef = useRef<string | null>(null);
   useEffect(() => {
     if (!selectedDate) return;
     let cancelled = false;
-    // См. комментарий в эффекте месяца выше — тот же осознанный случай.
+    const dateChanged = lastDateRef.current !== selectedDate;
+    lastDateRef.current = selectedDate;
+    const timeToVerify = dateChanged ? null : selectedTime;
+    if (dateChanged) setSelectedTime(null);
+    // См. комментарий в эффекте месяца выше — тот же осознанный случай
+    // (индикаторы состояния запроса, которому нет смысла ждать лишний
+    // рендер).
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTimeMismatch(false);
     setSlotsLoading(true);
     setSlots(null);
-    setSelectedTime(null);
-    fetch(`/api/booking/slots?date=${selectedDate}`)
+    const url = selectedService
+      ? `/api/booking/slots?date=${selectedDate}&serviceId=${selectedService.id}`
+      : `/api/booking/slots?date=${selectedDate}`;
+    fetch(url)
       .then((r) => r.json())
       .then((data: { slots: string[] }) => {
-        if (!cancelled) setSlots(data.slots);
+        if (cancelled) return;
+        setSlots(data.slots);
+        if (timeToVerify && !data.slots.includes(timeToVerify)) {
+          // Уже выбранное время не влезает в длительность только что
+          // выбранной (или заново проверяемой) услуги — сбрасываем ЕГО,
+          // а не услугу: пользователь явно выбирал услугу последней,
+          // логичнее попросить перевыбрать время из уже верной сетки.
+          setSelectedTime(null);
+          setTimeMismatch(true);
+        }
       })
       .finally(() => {
         if (!cancelled) setSlotsLoading(false);
@@ -102,7 +158,8 @@ export function BookingFlow() {
     return () => {
       cancelled = true;
     };
-  }, [selectedDate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, selectedService]);
 
   const grid = useMemo(() => buildMonthGrid(visibleMonth), [visibleMonth]);
   const weekdayLabels = useMemo(() => {
@@ -158,7 +215,10 @@ export function BookingFlow() {
                 type="button"
                 className={`${styles.slot} ${selectedTime === s ? styles.slotSelected : ""}`}
                 aria-pressed={selectedTime === s}
-                onClick={() => setSelectedTime(s)}
+                onClick={() => {
+                  setSelectedTime(s);
+                  setTimeMismatch(false);
+                }}
               >
                 {s}
               </button>
@@ -166,10 +226,49 @@ export function BookingFlow() {
           </div>
         )}
 
-        {selectedTime && (
+        {/* Шаг "услуга" — виден, как только сетка времени хоть раз
+            загрузилась (не обязательно строго ПОСЛЕ выбора времени: время
+            остаётся кликабельным и здесь же, выше, весь этот период —
+            тот же принцип "всё на виду, ничего не прячем за шагами", что
+            и у самого календаря). Пока не выбраны ОБА — времени и
+            услуги — summary ниже не показывается. */}
+        {slots && slots.length > 0 && (
+          <div className={styles.serviceSection}>
+            <h3 className={styles.stepTitle}>{t("pickService")}</h3>
+            {timeMismatch && <p className={styles.mismatchNotice}>{t("timeMismatch")}</p>}
+            {!services && (
+              <div className={styles.serviceGrid}>
+                {[0, 1, 2].map((i) => (
+                  <span key={i} className={styles.serviceOptionSkeleton} />
+                ))}
+              </div>
+            )}
+            {services && (
+              <div className={styles.serviceGrid}>
+                {services.map((sv) => (
+                  <button
+                    key={sv.id}
+                    type="button"
+                    className={`${styles.serviceOption} ${selectedService?.id === sv.id ? styles.serviceOptionSelected : ""}`}
+                    aria-pressed={selectedService?.id === sv.id}
+                    onClick={() => setSelectedService(sv)}
+                  >
+                    <span className={styles.serviceOptionName}>{locale === "ro" ? sv.nameRo : sv.nameRu}</span>
+                    <span className={styles.serviceOptionMeta}>
+                      {sv.durationMin} {tPrice("duration")} · {(sv.priceCents / 100).toLocaleString(locale === "ro" ? "ro-RO" : "ru-RU")}{" "}
+                      {tPrice("currency")}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {selectedTime && selectedService && (
           <div className={styles.summary}>
             <div className={styles.summaryText}>
-              {t("selectedLabel")} {selectedDateLabel}, {selectedTime}
+              {t("selectedLabel")} {selectedDateLabel}, {selectedTime} · {locale === "ro" ? selectedService.nameRo : selectedService.nameRu}
             </div>
             <button type="button" className={styles.continueBtn} disabled title={t("continueSoon")}>
               {t("continueSoon")}

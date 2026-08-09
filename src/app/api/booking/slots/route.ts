@@ -8,13 +8,31 @@ function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number) {
   return aStart < bEnd && aEnd > bStart;
 }
 
-// Свободные слоты на конкретный календарный день. Длительность слота пока
-// фиксированная (SLOT_MINUTES) — учёт длительности выбранной услуги ещё не
-// подключён (отдельная задача), см. комментарий в src/lib/shop-time.ts.
+// Свободные слоты на конкретный календарный день. Стартовые точки всегда
+// с шагом SLOT_MINUTES (сетка времени в UI не должна прыгать от услуги к
+// услуге) — а вот ДЛИТЕЛЬНОСТЬ, которая проверяется на пересечение с
+// другими записями/блокировками и на "влезает ли до конца рабочего дня",
+// берётся из конкретной услуги (?serviceId=), если она передана. Без
+// serviceId (сценарий "сначала время, потом услуга" — сервис ещё не
+// выбран) — используется дефолтная SLOT_MINUTES, как раньше.
 export async function GET(request: Request) {
-  const date = new URL(request.url).searchParams.get("date");
+  const url = new URL(request.url);
+  const date = url.searchParams.get("date");
+  const serviceId = url.searchParams.get("serviceId");
   if (!date || !DATE_RE.test(date)) {
     return NextResponse.json({ error: "invalid date, expected YYYY-MM-DD" }, { status: 400 });
+  }
+
+  let durationMin = SLOT_MINUTES;
+  if (serviceId) {
+    const service = await prisma.service.findUnique({
+      where: { id: serviceId },
+      select: { durationMin: true, active: true },
+    });
+    // Неизвестный/неактивный serviceId — не 400: тихо откатываемся на
+    // дефолтную длительность, чтобы устаревшая ссылка на услугу не
+    // ломала весь календарь.
+    if (service?.active) durationMin = service.durationMin;
   }
 
   const weekday = localWeekday(date);
@@ -48,9 +66,11 @@ export async function GET(request: Request) {
 
   const now = Date.now();
   const slots: string[] = [];
-  for (let minute = wh.startMinute; minute + SLOT_MINUTES <= wh.endMinute; minute += SLOT_MINUTES) {
+  // Шаг цикла — всегда SLOT_MINUTES (сетка стартовых точек), а
+  // "влезает ли" — по durationMin выбранной услуги (или дефолту).
+  for (let minute = wh.startMinute; minute + durationMin <= wh.endMinute; minute += SLOT_MINUTES) {
     const slotStart = zonedTimeToUtc(date, minute).getTime();
-    const slotEnd = zonedTimeToUtc(date, minute + SLOT_MINUTES).getTime();
+    const slotEnd = zonedTimeToUtc(date, minute + durationMin).getTime();
     if (slotStart < now) continue;
     if (blocks.some((b) => overlaps(slotStart, slotEnd, b.start, b.end))) continue;
     const hh = String(Math.floor(minute / 60)).padStart(2, "0");

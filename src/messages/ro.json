@@ -37,6 +37,8 @@
     "backToCalendar": "Înapoi la calendar",
     "loading": "Se încarcă…",
     "noSlots": "Nu sunt ore libere în această zi — alege altă dată.",
+    "pickService": "Alege serviciul",
+    "timeMismatch": "Ora aleasă nu se potrivește duratei acestui serviciu — alege alta din grila de mai sus.",
     "selectedLabel": "Programare pentru",
     "continueSoon": "Formularul de confirmare vine în curând"
   }

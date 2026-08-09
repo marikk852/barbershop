@@ -157,6 +157,77 @@
   color: #fff;
 }
 
+.serviceSection {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.serviceSection .stepTitle {
+  margin-bottom: 12px;
+}
+.mismatchNotice {
+  margin: -4px 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #e8a8a8;
+}
+.serviceGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.serviceOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.035);
+  color: #e4e8ec;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.serviceOption:hover,
+.serviceOption:focus-visible {
+  border-color: rgba(216, 31, 38, 0.5);
+  outline: none;
+}
+.serviceOptionSelected {
+  background: rgba(216, 31, 38, 0.85);
+  border-color: rgba(216, 31, 38, 0.85);
+  color: #fff;
+}
+.serviceOptionName {
+  font-size: 14px;
+}
+.serviceOptionMeta {
+  flex: none;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: #9aa2ac;
+  white-space: nowrap;
+}
+.serviceOptionSelected .serviceOptionMeta {
+  color: rgba(255, 255, 255, 0.8);
+}
+.serviceOptionSkeleton {
+  height: 46px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.03) 25%, rgba(255, 255, 255, 0.07) 37%, rgba(255, 255, 255, 0.03) 63%);
+  background-size: 400% 100%;
+  animation: bookingSkeletonShimmer 1.7s ease-in-out infinite;
+}
+@keyframes bookingSkeletonShimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .serviceOptionSkeleton { animation: none; background: rgba(255, 255, 255, 0.045); }
+}
+
 .summary {
   margin-top: 18px;
   padding-top: 16px;
