@@ -663,12 +663,27 @@
   -webkit-backdrop-filter: blur(28px) saturate(1.4);
   box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.75), 0 2px 14px rgba(0, 0, 0, 0.4);
   /* Явно БЕЗ border — попап без рамки, в отличие от капсул меню. */
+  opacity: 1;
   transition:
     left 0.48s cubic-bezier(0.16, 1, 0.3, 1),
     top 0.48s cubic-bezier(0.16, 1, 0.3, 1),
     width 0.48s cubic-bezier(0.16, 1, 0.3, 1),
     height 0.48s cubic-bezier(0.16, 1, 0.3, 1),
-    border-radius 0.48s cubic-bezier(0.16, 1, 0.3, 1);
+    border-radius 0.48s cubic-bezier(0.16, 1, 0.3, 1),
+    /* Растворение при закрытии (.bookingPanelClosing ниже) — раньше
+       панель схлопывалась геометрией (FLIP выше) до размера/формы
+       капсулы-источника, оставаясь на 100% непрозрачной ВСЮ дорогу, и
+       в момент, когда geometry-переход доигрывал (transitionend),
+       site-scene.tsx тут же переводил popupPhase в "closed" — а это
+       условие в JSX убирает панель из DOM В ТОТ ЖЕ КАДР. Т.е. панель
+       не гасла — она была видна на 100% и буквально исчезала одним
+       щелчком в конце. Чуть короче geometry (0.4s против 0.48s) — с
+       запасом, чтобы прозрачность гарантированно успела дойти до 0 ДО
+       фактического удаления из DOM, не впритык. */
+    opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.bookingPanelClosing {
+  opacity: 0;
 }
 .bookingContent {
   position: absolute;
