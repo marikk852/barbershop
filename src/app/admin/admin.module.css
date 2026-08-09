@@ -1,0 +1,146 @@
+.page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 20px 16px 40px;
+}
+.title {
+  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 600;
+}
+.centerMsg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tg-viewport-height);
+  padding: 32px;
+  text-align: center;
+  color: var(--tg-hint);
+  font-size: 15px;
+  line-height: 1.6;
+}
+.hint {
+  color: var(--tg-hint);
+  font-size: 14px;
+}
+.error {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--tg-destructive) 12%, transparent);
+  color: var(--tg-destructive);
+  font-size: 14px;
+  margin-bottom: 14px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.card {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--tg-section-bg);
+}
+.cardSkeleton {
+  height: 128px;
+  border-radius: 14px;
+  background: linear-gradient(
+    90deg,
+    var(--tg-section-bg) 25%,
+    color-mix(in srgb, var(--tg-section-bg) 60%, var(--tg-hint)) 37%,
+    var(--tg-section-bg) 63%
+  );
+  background-size: 400% 100%;
+  animation: adminShimmer 1.7s ease-in-out infinite;
+}
+@keyframes adminShimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cardSkeleton { animation: none; }
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.clientName {
+  font-size: 16px;
+  font-weight: 600;
+}
+.statusBadge {
+  flex: none;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.statusPENDING {
+  background: color-mix(in srgb, #f5a623 18%, transparent);
+  color: #b9740a;
+}
+.statusCONFIRMED {
+  background: color-mix(in srgb, #34c759 18%, transparent);
+  color: #1e8e3e;
+}
+.statusCANCELLED {
+  background: color-mix(in srgb, var(--tg-destructive) 15%, transparent);
+  color: var(--tg-destructive);
+}
+.statusDONE {
+  background: color-mix(in srgb, var(--tg-hint) 20%, transparent);
+  color: var(--tg-hint);
+}
+
+.cardRow {
+  display: block;
+  font-size: 14px;
+  color: var(--tg-text);
+  text-decoration: none;
+  margin-top: 2px;
+}
+.notes {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--tg-secondary-bg);
+  font-size: 13px;
+  color: var(--tg-hint);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.confirmBtn,
+.cancelBtn {
+  flex: 1;
+  padding: 10px 0;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.confirmBtn:disabled,
+.cancelBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.confirmBtn {
+  background: var(--tg-button);
+  color: var(--tg-button-text);
+}
+.cancelBtn {
+  background: color-mix(in srgb, var(--tg-destructive) 12%, transparent);
+  color: var(--tg-destructive);
+}

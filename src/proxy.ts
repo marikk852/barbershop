@@ -6,5 +6,8 @@ import { routing } from "./i18n/routing";
 export default createMiddleware(routing);
 
 export const config = {
-  matcher: ["/((?!api|_next|_vercel|.*\\..*).*)"],
+  // /admin — отдельное, НЕ-локализованное дерево (админ-панель, Telegram
+  // Mini App, своей i18n не имеет) — next-intl не должен пытаться
+  // приписать ему локаль/редиректить.
+  matcher: ["/((?!api|admin|_next|_vercel|.*\\..*).*)"],
 };
