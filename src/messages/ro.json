@@ -40,6 +40,14 @@
     "pickService": "Alege serviciul",
     "timeMismatch": "Ora aleasă nu se potrivește duratei acestui serviciu — alege alta din grila de mai sus.",
     "selectedLabel": "Programare pentru",
-    "continueSoon": "Formularul de confirmare vine în curând"
+    "namePlaceholder": "Numele tău",
+    "phonePlaceholder": "Telefon",
+    "notesPlaceholder": "Comentariu (opțional)",
+    "submit": "Trimite cererea",
+    "submitting": "Se trimite…",
+    "successTitle": "Cererea a fost trimisă!",
+    "successText": "Barberul te va contacta pentru a confirma programarea.",
+    "slotTaken": "Această oră tocmai a fost ocupată — alege alta din grila de mai sus.",
+    "genericError": "Nu am putut trimite cererea — încearcă din nou."
   }
 }

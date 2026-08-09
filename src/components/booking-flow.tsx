@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   formatDateStr,
@@ -80,6 +80,14 @@ export function BookingFlow() {
   // true, если ранее выбранное время не пережило проверку по
   // длительности только что выбранной услуги (см. эффект слотов ниже).
   const [timeMismatch, setTimeMismatch] = useState(false);
+
+  // Форма контакта — последний шаг, после даты+времени+услуги.
+  const [clientName, setClientName] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
+  const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -197,6 +205,49 @@ export function BookingFlow() {
     return isDayFullyBlocked(dateStr, monthData.workingHours, monthData.timeOff);
   }
 
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!selectedDate || !selectedTime || !selectedService) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const r = await fetch("/api/booking", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          serviceId: selectedService.id,
+          date: selectedDate,
+          time: selectedTime,
+          clientName,
+          clientPhone,
+          notes,
+        }),
+      });
+      if (!r.ok) {
+        const errBody = (await r.json().catch(() => ({}))) as { error?: string };
+        if (r.status === 409 && errBody.error === "slot no longer available") {
+          // Мир успел измениться между тем, как открыли форму, и
+          // отправкой — кто-то другой занял это же время. Сбрасываем
+          // выбор времени и сразу перезапрашиваем сетку (та же
+          // дата+услуга) — только что занятое время исчезнет из списка
+          // само, без дополнительного действия от пользователя.
+          setSelectedTime(null);
+          setTimeMismatch(true);
+          fetch(`/api/booking/slots?date=${selectedDate}&serviceId=${selectedService.id}`)
+            .then((res) => res.json())
+            .then((d: { slots: string[] }) => setSlots(d.slots));
+          throw new Error(t("slotTaken"));
+        }
+        throw new Error(t("genericError"));
+      }
+      setSubmitted(true);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : t("genericError"));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   if (selectedDate) {
     return (
       <div className={styles.flow}>
@@ -265,14 +316,49 @@ export function BookingFlow() {
           </div>
         )}
 
-        {selectedTime && selectedService && (
+        {selectedTime && selectedService && !submitted && (
           <div className={styles.summary}>
             <div className={styles.summaryText}>
               {t("selectedLabel")} {selectedDateLabel}, {selectedTime} · {locale === "ro" ? selectedService.nameRo : selectedService.nameRu}
             </div>
-            <button type="button" className={styles.continueBtn} disabled title={t("continueSoon")}>
-              {t("continueSoon")}
-            </button>
+            <form className={styles.contactForm} onSubmit={handleSubmit}>
+              <input
+                className={styles.input}
+                type="text"
+                required
+                placeholder={t("namePlaceholder")}
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                autoComplete="name"
+              />
+              <input
+                className={styles.input}
+                type="tel"
+                required
+                placeholder={t("phonePlaceholder")}
+                value={clientPhone}
+                onChange={(e) => setClientPhone(e.target.value)}
+                autoComplete="tel"
+              />
+              <textarea
+                className={styles.textarea}
+                placeholder={t("notesPlaceholder")}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+              />
+              {submitError && <p className={styles.mismatchNotice}>{submitError}</p>}
+              <button type="submit" className={styles.continueBtn} disabled={submitting}>
+                {submitting ? t("submitting") : t("submit")}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {submitted && (
+          <div className={styles.summary}>
+            <p className={styles.successTitle}>{t("successTitle")}</p>
+            <p className={styles.hint}>{t("successText")}</p>
           </div>
         )}
       </div>
