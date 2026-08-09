@@ -18,7 +18,10 @@
     "currency": "MDL"
   },
   "Bio": {
-    "title": "Biografie"
+    "title": "Biografie",
+    "call": "Sună",
+    "instagram": "Instagram",
+    "telegram": "Telegram"
   },
   "Portfolio": {
     "title": "Portofoliu"

@@ -18,7 +18,10 @@
     "currency": "MDL"
   },
   "Bio": {
-    "title": "Биография"
+    "title": "Биография",
+    "call": "Позвонить",
+    "instagram": "Instagram",
+    "telegram": "Telegram"
   },
   "Portfolio": {
     "title": "Портфолио"

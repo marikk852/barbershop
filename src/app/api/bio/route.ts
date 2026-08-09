@@ -10,5 +10,12 @@ export async function GET() {
     bioRu: content?.bioRu ?? "",
     bioRo: content?.bioRo ?? "",
     address: content?.address ?? null,
+    // phone/instagram/telegramUsername лежали в модели неиспользуемыми —
+    // отдаём их тоже, попап сам решает, показывать бейдж или нет (null
+    // сейчас, т.к. в seed их ещё нет — заполнятся, когда придут реальные
+    // контакты от барбера).
+    phone: content?.phone ?? null,
+    instagram: content?.instagram ?? null,
+    telegramUsername: content?.telegramUsername ?? null,
   });
 }

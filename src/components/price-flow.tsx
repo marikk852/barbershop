@@ -29,7 +29,18 @@ export function PriceFlow() {
     };
   }, []);
 
-  if (!services) return <p className={styles.hint}>…</p>;
+  if (!services) {
+    return (
+      <div className={styles.priceList}>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div key={i} className={styles.priceRowSkeleton}>
+            <span className={styles.skeletonLine} style={{ width: "56%" }} />
+            <span className={styles.skeletonLine} style={{ width: "17%" }} />
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <ul className={styles.priceList}>

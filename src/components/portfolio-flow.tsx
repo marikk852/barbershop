@@ -28,7 +28,15 @@ export function PortfolioFlow() {
     };
   }, []);
 
-  if (!items) return <p className={styles.hint}>…</p>;
+  if (!items) {
+    return (
+      <div className={styles.portfolioGrid}>
+        {Array.from({ length: 9 }).map((_, i) => (
+          <span key={i} className={styles.portfolioSkeleton} />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className={styles.portfolioGrid}>

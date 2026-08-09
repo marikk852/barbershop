@@ -18,6 +18,21 @@ export default async function BioPage() {
           {content.address}
         </p>
       )}
+      {(content?.phone || content?.instagram || content?.telegramUsername) && (
+        <p className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-sm text-zinc-400">
+          {content.phone && <a href={`tel:${content.phone.replace(/[^\d+]/g, "")}`}>{content.phone}</a>}
+          {content.instagram && (
+            <a href={`https://instagram.com/${content.instagram.replace(/^@/, "")}`} target="_blank" rel="noopener noreferrer">
+              @{content.instagram.replace(/^@/, "")}
+            </a>
+          )}
+          {content.telegramUsername && (
+            <a href={`https://t.me/${content.telegramUsername.replace(/^@/, "")}`} target="_blank" rel="noopener noreferrer">
+              @{content.telegramUsername.replace(/^@/, "")}
+            </a>
+          )}
+        </p>
+      )}
     </main>
   );
 }
