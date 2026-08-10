@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { AdminShell } from "./AdminShell";
 import "./admin-globals.css";
 
 // Отдельный root layout — /admin НЕ является потомком src/app/[locale]/layout.tsx
@@ -17,11 +18,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <head>
         {/* beforeInteractive — must be in root layout per Next.js docs;
             это и есть корневой layout для этого поддерева. Скрипт кладёт
-            window.Telegram.WebApp и CSS-переменные --tg-theme-* на html
-            ДО гидратации, чтобы страница не мигала неверной темой. */}
+            window.Telegram.WebApp (initData для авторизации, haptics) —
+            цвета сами по себе теперь фиксированные (см. admin-globals.css,
+            по просьбе пользователя — палитра сайта, не адаптивная тема). */}
         <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
       </head>
-      <body>{children}</body>
+      <body>
+        <AdminShell>{children}</AdminShell>
+      </body>
     </html>
   );
 }

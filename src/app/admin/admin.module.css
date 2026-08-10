@@ -1,7 +1,7 @@
 .page {
   max-width: 640px;
   margin: 0 auto;
-  padding: 20px 16px 40px;
+  padding: 20px 16px 88px;
 }
 .title {
   margin: 0 0 16px;
@@ -12,22 +12,22 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: var(--tg-viewport-height);
+  min-height: var(--admin-viewport-height);
   padding: 32px;
   text-align: center;
-  color: var(--tg-hint);
+  color: var(--admin-muted);
   font-size: 15px;
   line-height: 1.6;
 }
 .hint {
-  color: var(--tg-hint);
+  color: var(--admin-muted);
   font-size: 14px;
 }
 .error {
   padding: 12px 14px;
   border-radius: 10px;
-  background: color-mix(in srgb, var(--tg-destructive) 12%, transparent);
-  color: var(--tg-destructive);
+  background: var(--admin-red-bg);
+  color: var(--admin-red);
   font-size: 14px;
   margin-bottom: 14px;
 }
@@ -40,17 +40,13 @@
 .card {
   padding: 14px 16px;
   border-radius: 14px;
-  background: var(--tg-section-bg);
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
 }
 .cardSkeleton {
   height: 128px;
   border-radius: 14px;
-  background: linear-gradient(
-    90deg,
-    var(--tg-section-bg) 25%,
-    color-mix(in srgb, var(--tg-section-bg) 60%, var(--tg-hint)) 37%,
-    var(--tg-section-bg) 63%
-  );
+  background: linear-gradient(90deg, var(--admin-surface) 25%, var(--admin-surface-strong) 37%, var(--admin-surface) 63%);
   background-size: 400% 100%;
   animation: adminShimmer 1.7s ease-in-out infinite;
 }
@@ -83,26 +79,26 @@
   white-space: nowrap;
 }
 .statusPENDING {
-  background: color-mix(in srgb, #f5a623 18%, transparent);
-  color: #b9740a;
+  background: var(--admin-warning-bg);
+  color: var(--admin-warning);
 }
 .statusCONFIRMED {
-  background: color-mix(in srgb, #34c759 18%, transparent);
-  color: #1e8e3e;
+  background: var(--admin-success-bg);
+  color: var(--admin-success);
 }
 .statusCANCELLED {
-  background: color-mix(in srgb, var(--tg-destructive) 15%, transparent);
-  color: var(--tg-destructive);
+  background: var(--admin-red-bg);
+  color: var(--admin-red);
 }
 .statusDONE {
-  background: color-mix(in srgb, var(--tg-hint) 20%, transparent);
-  color: var(--tg-hint);
+  background: var(--admin-surface-strong);
+  color: var(--admin-muted);
 }
 
 .cardRow {
   display: block;
   font-size: 14px;
-  color: var(--tg-text);
+  color: var(--admin-text);
   text-decoration: none;
   margin-top: 2px;
 }
@@ -110,9 +106,9 @@
   margin-top: 8px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: var(--tg-secondary-bg);
+  background: var(--admin-surface-strong);
   font-size: 13px;
-  color: var(--tg-hint);
+  color: var(--admin-muted);
 }
 
 .actions {
@@ -137,10 +133,346 @@
   cursor: default;
 }
 .confirmBtn {
-  background: var(--tg-button);
-  color: var(--tg-button-text);
+  background: var(--admin-red);
+  color: #fff;
 }
 .cancelBtn {
-  background: color-mix(in srgb, var(--tg-destructive) 12%, transparent);
-  color: var(--tg-destructive);
+  background: var(--admin-red-bg);
+  color: var(--admin-red);
+}
+
+/* ---------- нижняя навигация (общая для всех разделов) ---------- */
+.nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  border-top: 1px solid var(--admin-border);
+  background: rgba(10, 10, 11, 0.92);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.navItem {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 9px 4px 8px;
+  border: none;
+  background: none;
+  color: var(--admin-muted);
+  text-decoration: none;
+  font-size: 10px;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.navItem svg {
+  width: 22px;
+  height: 22px;
+}
+.navItemActive {
+  color: var(--admin-red);
+}
+
+/* ---------- общие формы (services/portfolio/content) ---------- */
+.formRow {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+.input,
+.textarea {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface);
+  color: var(--admin-text);
+  font-size: 14px;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--admin-muted);
+}
+.input:focus,
+.textarea:focus {
+  outline: none;
+  border-color: var(--admin-red);
+  background: var(--admin-surface-strong);
+}
+.textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+.label {
+  font-size: 12px;
+  color: var(--admin-muted);
+  margin-bottom: -4px;
+}
+.row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.primaryBtn {
+  padding: 11px 20px;
+  border-radius: 999px;
+  border: none;
+  background: var(--admin-red);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+.primaryBtn:hover:not(:disabled) {
+  background: #ef2229;
+}
+.primaryBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.secondaryBtn {
+  padding: 11px 20px;
+  border-radius: 999px;
+  border: 1px solid var(--admin-border);
+  background: transparent;
+  color: var(--admin-text);
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.secondaryBtn:hover:not(:disabled) {
+  border-color: var(--admin-muted);
+  background: var(--admin-surface);
+}
+.dangerBtn {
+  padding: 11px 20px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: var(--admin-red-bg);
+  color: var(--admin-red);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.dangerBtn:hover:not(:disabled) {
+  background: rgba(216, 31, 38, 0.28);
+}
+.btnRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+/* Компактные квадратные кнопки для действий-иконок (↑/↓ и т.п.) внутри
+   .btnRow — полноразмерный .secondaryBtn (padding 11px 20px) на пятикнопочном
+   ряду (услуги: ↑ ↓ Скрыть Изменить Удалить) не помещается на экране 390px
+   и вылезает за край карточки; этот вариант того же вида, но без лишней
+   горизонтальной набивки. */
+.moveBtn {
+  padding: 11px 14px;
+  flex: none;
+}
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--admin-muted);
+  cursor: pointer;
+  user-select: none;
+}
+/* ---------- секции внутри одной страницы (контент) ---------- */
+.section {
+  margin-top: 28px;
+}
+.section:first-child {
+  margin-top: 0;
+}
+.sectionTitle {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--admin-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.whRow {
+  display: grid;
+  /* minmax(0, 1fr), а не голое 1fr: нативный <input type="time"> в
+     локали с AM/PM (Chromium/WebKit при английской локали окружения)
+     шире, чем даёт трек 1fr на 390px — без minmax(0, …) грид-трек
+     растягивается под min-content поля и последняя колонка (тумблер
+     "Вых.") вылезает за край экрана вместо переноса/сжатия. */
+  grid-template-columns: 46px minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--admin-border);
+}
+.whRow:last-child {
+  border-bottom: none;
+}
+.whDay {
+  font-size: 13px;
+  color: var(--admin-text);
+}
+.timeInput {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 4px;
+  border-radius: 8px;
+  border: 1px solid var(--admin-border);
+  background: var(--admin-surface);
+  color: var(--admin-text);
+  font-size: 12px;
+}
+.timeInput:disabled {
+  opacity: 0.4;
+}
+
+/* ---------- сетка фото (портфолио) ---------- */
+.photoGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.photoCard {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+}
+.photoImg {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+.photoOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 8px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.55) 0%, transparent 26%, transparent 70%, rgba(0, 0, 0, 0.65) 100%);
+}
+.photoOverlayTop {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.photoOverlayBottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 6px;
+}
+.photoCaption {
+  font-size: 12px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.iconBtn {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(10, 10, 11, 0.55);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: background 0.15s ease;
+}
+.iconBtn:hover:not(:disabled) {
+  background: rgba(10, 10, 11, 0.8);
+}
+.iconBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.iconBtnDanger {
+  color: var(--admin-red);
+}
+.uploadTile {
+  aspect-ratio: 1 / 1;
+  border-radius: 14px;
+  border: 1px dashed var(--admin-border);
+  background: var(--admin-surface);
+  color: var(--admin-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.uploadTile:hover:not(:disabled) {
+  border-color: var(--admin-red);
+  color: var(--admin-text);
+}
+.uploadTile:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.uploadTile span:first-child {
+  font-size: 26px;
+  line-height: 1;
+}
+.progressBar {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+}
+.progressFill {
+  height: 100%;
+  background: var(--admin-red);
+  transition: width 0.15s ease;
+}
+
+.fab {
+  position: fixed;
+  right: 20px;
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  z-index: 15;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  background: var(--admin-red);
+  color: #fff;
+  font-size: 26px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 24px -6px rgba(216, 31, 38, 0.6);
 }

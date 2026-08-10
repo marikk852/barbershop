@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { SHOP_TIMEZONE } from "@/lib/shop-time";
-import { haptic, useTelegramWebApp } from "@/lib/telegram-webapp";
+import { useAdminFetch } from "@/lib/admin-context";
+import { haptic } from "@/lib/telegram-webapp";
 import styles from "./admin.module.css";
 
 type BookingStatus = "PENDING" | "CONFIRMED" | "CANCELLED" | "DONE";
@@ -35,15 +36,16 @@ const dateFmt = new Intl.DateTimeFormat("ru", {
 });
 
 export default function AdminPage() {
-  const { checked, initData } = useTelegramWebApp();
+  // Авторизация (initData) уже проверена в AdminShell — сюда попадаем,
+  // только когда она валидна; adminFetch сам прикладывает заголовок.
+  const adminFetch = useAdminFetch();
   const [bookings, setBookings] = useState<Booking[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    if (!initData) return;
     setError(null);
-    fetch("/api/admin/bookings", { headers: { Authorization: `tma ${initData}` } })
+    adminFetch("/api/admin/bookings")
       .then(async (r) => {
         if (!r.ok) {
           const body = await r.json().catch(() => ({}));
@@ -53,24 +55,23 @@ export default function AdminPage() {
       })
       .then((data) => setBookings(data.bookings))
       .catch((e: Error) => setError(e.message));
-  }, [initData]);
+  }, [adminFetch]);
 
   useEffect(() => {
     // Осознанное исключение из "не звать setState в эффекте напрямую":
     // load() сбрасывает предыдущую ошибку синхронно перед НОВЫМ запросом
-    // (initData появился/сменился) — тот же паттерн индикатора состояния
-    // внешнего запроса, что и в booking-flow.tsx.
+    // — тот же паттерн индикатора состояния внешнего запроса, что и в
+    // booking-flow.tsx.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
 
   async function updateStatus(id: string, status: BookingStatus) {
-    if (!initData) return;
     setPendingId(id);
     try {
-      const r = await fetch(`/api/admin/bookings/${id}`, {
+      const r = await adminFetch(`/api/admin/bookings/${id}`, {
         method: "PATCH",
-        headers: { Authorization: `tma ${initData}`, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
       if (!r.ok) throw new Error("Не удалось обновить статус");
@@ -82,22 +83,6 @@ export default function AdminPage() {
     } finally {
       setPendingId(null);
     }
-  }
-
-  // !checked: эффект хука ещё не отработал (первый рендер).
-  if (!checked) {
-    return <main className={styles.centerMsg}>Загрузка…</main>;
-  }
-  // !initData: страницу открыли НЕ из настоящего Telegram-клиента (см.
-  // подробное объяснение в telegram-webapp.ts — window.Telegram.WebApp
-  // при этом обычно СУЩЕСТВУЕТ, просто с пустым initData).
-  if (!initData) {
-    return (
-      <main className={styles.centerMsg}>
-        Откройте эту страницу через кнопку бота в Telegram — напрямую в
-        браузере она не работает (нужна авторизация через Telegram).
-      </main>
-    );
   }
 
   return (
