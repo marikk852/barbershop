@@ -9,7 +9,7 @@ type AdminUserStatus = "PENDING" | "ACTIVE";
 
 interface AdminUserRow {
   id: string;
-  telegramId: string;
+  telegramId: string | null;
   username: string | null;
   firstName: string | null;
   lastName: string | null;
@@ -22,7 +22,16 @@ function displayName(u: AdminUserRow): string {
   if (name && u.username) return `${name} (@${u.username})`;
   if (name) return name;
   if (u.username) return `@${u.username}`;
-  return `id ${u.telegramId}`;
+  return u.telegramId ? `id ${u.telegramId}` : "без имени";
+}
+
+// Вторая строка карточки — либо реальный telegramId (человек хотя бы
+// раз открывал бота), либо пояснение, что запись это "бронь" по нику,
+// ожидающая первого входа (см. requireAdmin() в lib/telegram-auth.ts —
+// Telegram не даёt боту узнать id по одному нику, это ограничение
+// платформы).
+function detailLine(u: AdminUserRow): string {
+  return u.telegramId ? `id ${u.telegramId}` : "ждёт первого входа в бота — доступ включится сам";
 }
 
 // Доступна только владельцу (сервер сверяет через requireOwner на каждой
@@ -37,7 +46,7 @@ export default function UsersPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const [adding, setAdding] = useState(false);
-  const [newId, setNewId] = useState("");
+  const [handle, setHandle] = useState(""); // Telegram ID (число) ИЛИ @nickname — см. handleAdd
   const [newName, setNewName] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -98,21 +107,27 @@ export default function UsersPage() {
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!/^\d+$/.test(newId.trim())) {
-      setError("Telegram ID — это число (например, 837507830), не username.");
-      return;
-    }
+    const trimmed = handle.trim();
+    if (!trimmed) return;
+    // Число -> telegramId, иначе -> username (ведущий @ необязателен,
+    // сервер сам его срежет). Так одно поле обслуживает оба сценария —
+    // владельцу не нужно самому решать, какое из двух заполнять.
+    const isNumeric = /^\d+$/.test(trimmed);
     setSaving(true);
     try {
       const r = await adminFetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ telegramId: newId.trim(), firstName: newName.trim() || undefined }),
+        body: JSON.stringify({
+          telegramId: isNumeric ? trimmed : undefined,
+          username: isNumeric ? undefined : trimmed,
+          firstName: newName.trim() || undefined,
+        }),
       });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Не удалось добавить");
       haptic("success");
       setAdding(false);
-      setNewId("");
+      setHandle("");
       setNewName("");
       load();
     } catch (err) {
@@ -131,7 +146,9 @@ export default function UsersPage() {
       <h1 className={styles.title}>Доступ к админке</h1>
       <p className={styles.hint} style={{ marginTop: -10, marginBottom: 18 }}>
         Владелец (вы) видит эту страницу всегда. Остальным нужно один раз
-        открыть бота — заявка появится ниже, останется выдать доступ.
+        открыть бота — заявка появится ниже, останется выдать доступ. Либо
+        разрешите заранее по @нику кнопкой «+» — доступ включится сам,
+        как только человек в первый раз откроет бота.
       </p>
 
       {error && <p className={styles.error}>{error}</p>}
@@ -157,7 +174,7 @@ export default function UsersPage() {
                       <span className={styles.clientName}>{displayName(u)}</span>
                       <span className={`${styles.statusBadge} ${styles.statusPENDING}`}>Ожидает</span>
                     </div>
-                    <div className={styles.cardRow}>id {u.telegramId}</div>
+                    <div className={styles.cardRow}>{detailLine(u)}</div>
                     <div className={styles.btnRow} style={{ marginTop: 12 }}>
                       <button
                         type="button"
@@ -186,9 +203,11 @@ export default function UsersPage() {
                   <div key={u.id} className={styles.card}>
                     <div className={styles.cardHeader}>
                       <span className={styles.clientName}>{displayName(u)}</span>
-                      <span className={`${styles.statusBadge} ${styles.statusCONFIRMED}`}>Активен</span>
+                      <span className={`${styles.statusBadge} ${styles.statusCONFIRMED}`}>
+                        {u.telegramId ? "Активен" : "Разрешён — ждёт входа"}
+                      </span>
                     </div>
-                    <div className={styles.cardRow}>id {u.telegramId}</div>
+                    <div className={styles.cardRow}>{detailLine(u)}</div>
                     <div className={styles.btnRow} style={{ marginTop: 12 }}>
                       <button
                         type="button"
@@ -213,13 +232,12 @@ export default function UsersPage() {
       {adding && (
         <form className={styles.card} onSubmit={handleAdd} style={{ marginTop: 14 }}>
           <div className={styles.formRow}>
-            <span className={styles.label}>Telegram ID (число)</span>
+            <span className={styles.label}>Telegram ID или @nickname</span>
             <input
               className={styles.input}
-              inputMode="numeric"
-              placeholder="Например, 837507830"
-              value={newId}
-              onChange={(e) => setNewId(e.target.value)}
+              placeholder="837507830 или @username"
+              value={handle}
+              onChange={(e) => setHandle(e.target.value)}
               required
             />
             <span className={styles.label}>Имя (необязательно, для удобства)</span>
@@ -237,7 +255,7 @@ export default function UsersPage() {
       )}
 
       {!adding && (
-        <button type="button" className={styles.fab} onClick={() => setAdding(true)} aria-label="Добавить по Telegram ID">
+        <button type="button" className={styles.fab} onClick={() => setAdding(true)} aria-label="Добавить по Telegram ID или нику">
           +
         </button>
       )}

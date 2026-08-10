@@ -29,14 +29,23 @@ enum AdminUserStatus {
 /// хранится здесь, чтобы не зависеть от состояния этой таблицы). Только
 /// владелец может управлять этим списком (см. requireOwner()).
 model AdminUser {
-  id          String          @id @default(cuid())
-  telegramId  String          @unique
-  username    String?
-  firstName   String?
-  lastName    String?
-  status      AdminUserStatus @default(PENDING)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id         String @id @default(cuid())
+  /// Null — владелец разрешил доступ заранее ТОЛЬКО по нику (username),
+  /// человек ещё ни разу не открывал бота, поэтому numeric id неизвестен.
+  /// Заполняется сам при первом успешном входе с совпадающим username
+  /// (см. requireAdmin() в lib/telegram-auth.ts) — Telegram не даёт
+  /// боту узнать id по нику иначе, это НЕ выбор архитектуры, а
+  /// ограничение платформы.
+  telegramId String? @unique
+  username   String?
+
+  firstName String?
+  lastName  String?
+  status    AdminUserStatus @default(PENDING)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([username])
 }
 
 /// Услуга из прайс-листа. Длительность в минутах — основа расчёта слотов записи.

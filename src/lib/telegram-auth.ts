@@ -89,11 +89,15 @@ export function verifyTelegramInitData(initData: string, botToken: string): Veri
 //     экране /admin/users).
 // Побочный эффект: если подпись initData подлинная (Telegram однозначно
 // подтвердил личность), но аккаунт не в списке — заводим/обновляем для
-// него запись со статусом PENDING. Это единственный способ узнать
-// numeric telegramId нового человека без стороннего @userinfobot: он
-// просто один раз открывает бота, попытка проверяется, отклоняется (401
-// как и раньше — ничего не выдаём), но в /admin/users у владельца эта
-// попытка уже видна и доступ можно выдать в один тап.
+// него запись. Два случая:
+//  a) Владелец заранее "забронировал" доступ по нику (POST
+//     /api/admin/users {username} — telegramId тогда ещё null, Telegram
+//     НЕ даёт боту узнать id по одному только username, это ограничение
+//     платформы, не наш выбор). При совпадении username — привязываем
+//     telegramId к этой брони, доступ действует сразу же, без участия
+//     владельца на этом шаге.
+//  b) Совпадения нет — заводим обычную PENDING-запись. Владелец увидит
+//     её в /admin/users и выдаст доступ вручную.
 export async function requireAdmin(initData: string | null): Promise<VerifyResult> {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   const ownerId = process.env.ADMIN_TELEGRAM_ID;
@@ -107,23 +111,29 @@ export async function requireAdmin(initData: string | null): Promise<VerifyResul
 
   if (String(result.user.id) === ownerId) return result;
 
-  const record = await prisma.adminUser.upsert({
-    where: { telegramId: String(result.user.id) },
-    create: {
-      telegramId: String(result.user.id),
-      username: result.user.username ?? null,
-      firstName: result.user.firstName,
-      lastName: result.user.lastName ?? null,
-    },
-    update: {
-      // Свежие имя/username на каждый заход — человек мог их сменить с
-      // прошлого раза; status намеренно НЕ трогаем — update не должен
-      // тихо понижать уже выданный ACTIVE обратно в PENDING.
-      username: result.user.username ?? null,
-      firstName: result.user.firstName,
-      lastName: result.user.lastName ?? null,
-    },
-  });
+  const telegramId = String(result.user.id);
+  const username = result.user.username ?? null;
+  const freshNames = { firstName: result.user.firstName, lastName: result.user.lastName ?? null };
+
+  let record = await prisma.adminUser.findUnique({ where: { telegramId } });
+
+  if (record) {
+    // Обычный повторный визит — освежаем имя/username (могли смениться
+    // с прошлого раза), status НЕ трогаем: update не должен тихо
+    // понижать уже выданный ACTIVE обратно в PENDING.
+    record = await prisma.adminUser.update({ where: { id: record.id }, data: { username, ...freshNames } });
+  } else {
+    const claim = username
+      ? await prisma.adminUser.findFirst({ where: { telegramId: null, username: { equals: username, mode: "insensitive" } } })
+      : null;
+    record = claim
+      ? await prisma.adminUser.update({ where: { id: claim.id }, data: { telegramId, ...freshNames } })
+      : await prisma.adminUser.upsert({
+          where: { telegramId },
+          create: { telegramId, username, ...freshNames },
+          update: { username, ...freshNames },
+        });
+  }
 
   if (record.status !== "ACTIVE") {
     return { ok: false, reason: "not admin" };
