@@ -9,7 +9,7 @@ interface CreateBody {
 }
 
 export async function GET(request: Request) {
-  const auth = requireAdmin(getInitDataFromRequest(request));
+  const auth = await requireAdmin(getInitDataFromRequest(request));
   if (!auth.ok) return NextResponse.json({ error: auth.reason }, { status: 401 });
 
   const items = await prisma.portfolioItem.findMany({ orderBy: { order: "asc" } });
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 // /api/admin/portfolio/upload — тот выдаёт токен для прямой загрузки
 // из браузера, эта же ручка только сохраняет итоговый url в БД).
 export async function POST(request: Request) {
-  const auth = requireAdmin(getInitDataFromRequest(request));
+  const auth = await requireAdmin(getInitDataFromRequest(request));
   if (!auth.ok) return NextResponse.json({ error: auth.reason }, { status: 401 });
 
   const body = (await request.json().catch(() => null)) as CreateBody | null;

@@ -13,7 +13,7 @@ interface UpdateRow {
 // 0=вс..6=сб, засеяно один раз в prisma/seed.ts), поэтому здесь нет
 // create/delete — только чтение и upsert по weekday.
 export async function GET(request: Request) {
-  const auth = requireAdmin(getInitDataFromRequest(request));
+  const auth = await requireAdmin(getInitDataFromRequest(request));
   if (!auth.ok) return NextResponse.json({ error: auth.reason }, { status: 401 });
 
   const rows = await prisma.workingHours.findMany({ orderBy: { weekday: "asc" } });
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 // экране) — проще и надёжнее одного PATCH на weekday при потере сети
 // посреди серии запросов.
 export async function PATCH(request: Request) {
-  const auth = requireAdmin(getInitDataFromRequest(request));
+  const auth = await requireAdmin(getInitDataFromRequest(request));
   if (!auth.ok) return NextResponse.json({ error: auth.reason }, { status: 401 });
 
   const body = (await request.json().catch(() => null)) as { rows?: UpdateRow[] } | null;

@@ -14,7 +14,7 @@ interface UpdateBody {
 // SiteContent — singleton (id всегда 1, см. schema.prisma), поэтому нет
 // отдельной [id]-ручки: GET/PATCH тут работают с единственной строкой.
 export async function GET(request: Request) {
-  const auth = requireAdmin(getInitDataFromRequest(request));
+  const auth = await requireAdmin(getInitDataFromRequest(request));
   if (!auth.ok) return NextResponse.json({ error: auth.reason }, { status: 401 });
 
   const content = await prisma.siteContent.upsert({
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const auth = requireAdmin(getInitDataFromRequest(request));
+  const auth = await requireAdmin(getInitDataFromRequest(request));
   if (!auth.ok) return NextResponse.json({ error: auth.reason }, { status: 401 });
 
   const body = (await request.json().catch(() => null)) as UpdateBody | null;

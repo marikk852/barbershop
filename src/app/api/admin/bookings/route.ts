@@ -9,7 +9,7 @@ import { getInitDataFromRequest, requireAdmin } from "@/lib/telegram-auth";
 const STATUS_ORDER: Record<string, number> = { PENDING: 0, CONFIRMED: 1, DONE: 2, CANCELLED: 3 };
 
 export async function GET(request: Request) {
-  const auth = requireAdmin(getInitDataFromRequest(request));
+  const auth = await requireAdmin(getInitDataFromRequest(request));
   if (!auth.ok) {
     return NextResponse.json({ error: auth.reason }, { status: 401 });
   }
@@ -26,6 +26,7 @@ export async function GET(request: Request) {
       id: b.id,
       clientName: b.clientName,
       clientPhone: b.clientPhone,
+      clientEmail: b.clientEmail,
       startsAt: b.startsAt.toISOString(),
       endsAt: b.endsAt.toISOString(),
       status: b.status,

@@ -20,7 +20,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       body,
       request,
       onBeforeGenerateToken: async () => {
-        const auth = requireAdmin(getInitDataFromRequest(request));
+        const auth = await requireAdmin(getInitDataFromRequest(request));
         if (!auth.ok) {
           throw new Error(auth.reason);
         }

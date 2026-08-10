@@ -45,7 +45,7 @@ interface ServiceBody {
 }
 
 export async function GET(request: Request) {
-  const auth = requireAdmin(getInitDataFromRequest(request));
+  const auth = await requireAdmin(getInitDataFromRequest(request));
   if (!auth.ok) return NextResponse.json({ error: auth.reason }, { status: 401 });
 
   const services = await prisma.service.findMany({ orderBy: { order: "asc" } });
@@ -53,7 +53,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = requireAdmin(getInitDataFromRequest(request));
+  const auth = await requireAdmin(getInitDataFromRequest(request));
   if (!auth.ok) return NextResponse.json({ error: auth.reason }, { status: 401 });
 
   const body = (await request.json().catch(() => null)) as ServiceBody | null;

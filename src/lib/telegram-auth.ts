@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { prisma } from "@/lib/prisma";
 
 // Проверка initData Telegram Mini App — единственный механизм авторизации
 // админки (без пароля, без сессий/cookie): пользователь открывает Mini App
@@ -75,13 +76,28 @@ export function verifyTelegramInitData(initData: string, botToken: string): Veri
 }
 
 // Собранная проверка "это вообще валидный Telegram-пользователь" +
-// "это именно барбер, а не кто угодно с initData" — ровно то, что нужно
-// на каждом /api/admin/* эндпоинте. Один explicit reason на выходе вместо
-// булева, чтобы 401-ответы были осмысленными при отладке.
-export function requireAdmin(initData: string | null): VerifyResult {
+// "у него есть доступ к админке" — ровно то, что нужно на каждом
+// /api/admin/* эндпоинте. Один explicit reason на выходе вместо булева,
+// чтобы 401-ответы были осмысленными при отладке.
+//
+// Два уровня допуска:
+//  1. Владелец (ADMIN_TELEGRAM_ID из env) — доступ всегда, БЕЗ обращения
+//     к таблице AdminUser. Так барбер не может сам себя случайно
+//     заблокировать, если таблица пуста/повреждена/недоступна.
+//  2. Любой другой Telegram-аккаунт — только если для его telegramId в
+//     AdminUser стоит status=ACTIVE (владелец выдаёт это вручную на
+//     экране /admin/users).
+// Побочный эффект: если подпись initData подлинная (Telegram однозначно
+// подтвердил личность), но аккаунт не в списке — заводим/обновляем для
+// него запись со статусом PENDING. Это единственный способ узнать
+// numeric telegramId нового человека без стороннего @userinfobot: он
+// просто один раз открывает бота, попытка проверяется, отклоняется (401
+// как и раньше — ничего не выдаём), но в /admin/users у владельца эта
+// попытка уже видна и доступ можно выдать в один тап.
+export async function requireAdmin(initData: string | null): Promise<VerifyResult> {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  const adminId = process.env.ADMIN_TELEGRAM_ID;
-  if (!botToken || !adminId) {
+  const ownerId = process.env.ADMIN_TELEGRAM_ID;
+  if (!botToken || !ownerId) {
     return { ok: false, reason: "server misconfigured: missing TELEGRAM_BOT_TOKEN/ADMIN_TELEGRAM_ID" };
   }
   if (!initData) return { ok: false, reason: "missing initData" };
@@ -89,8 +105,42 @@ export function requireAdmin(initData: string | null): VerifyResult {
   const result = verifyTelegramInitData(initData, botToken);
   if (!result.ok) return result;
 
-  if (String(result.user.id) !== adminId) {
+  if (String(result.user.id) === ownerId) return result;
+
+  const record = await prisma.adminUser.upsert({
+    where: { telegramId: String(result.user.id) },
+    create: {
+      telegramId: String(result.user.id),
+      username: result.user.username ?? null,
+      firstName: result.user.firstName,
+      lastName: result.user.lastName ?? null,
+    },
+    update: {
+      // Свежие имя/username на каждый заход — человек мог их сменить с
+      // прошлого раза; status намеренно НЕ трогаем — update не должен
+      // тихо понижать уже выданный ACTIVE обратно в PENDING.
+      username: result.user.username ?? null,
+      firstName: result.user.firstName,
+      lastName: result.user.lastName ?? null,
+    },
+  });
+
+  if (record.status !== "ACTIVE") {
     return { ok: false, reason: "not admin" };
+  }
+  return result;
+}
+
+// Более узкая проверка для /api/admin/users/* — управлять списком
+// допущенных аккаунтов может ТОЛЬКО владелец (иначе выданный доступ
+// админ мог бы сам себе выдать больше прав или отозвать доступ у
+// владельца).
+export async function requireOwner(initData: string | null): Promise<VerifyResult> {
+  const result = await requireAdmin(initData);
+  if (!result.ok) return result;
+  const ownerId = process.env.ADMIN_TELEGRAM_ID;
+  if (String(result.user.id) !== ownerId) {
+    return { ok: false, reason: "owner only" };
   }
   return result;
 }

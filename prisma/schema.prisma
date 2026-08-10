@@ -14,6 +14,31 @@ enum BookingStatus {
   DONE
 }
 
+enum AdminUserStatus {
+  /// Telegram-подпись прошла проверку, но доступа ещё нет — запись
+  /// появляется здесь САМА при первой попытке открыть админку (см.
+  /// requireAdmin() в lib/telegram-auth.ts), владельцу остаётся только
+  /// выдать доступ на экране /admin/users, не выясняя чужой numeric id
+  /// вручную через внешние боты.
+  PENDING
+  ACTIVE
+}
+
+/// Список аккаунтов Telegram, которым разрешён вход в /admin — ПОМИМО
+/// владельца (ADMIN_TELEGRAM_ID из env, у него доступ всегда и он не
+/// хранится здесь, чтобы не зависеть от состояния этой таблицы). Только
+/// владелец может управлять этим списком (см. requireOwner()).
+model AdminUser {
+  id          String          @id @default(cuid())
+  telegramId  String          @unique
+  username    String?
+  firstName   String?
+  lastName    String?
+  status      AdminUserStatus @default(PENDING)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
 /// Услуга из прайс-листа. Длительность в минутах — основа расчёта слотов записи.
 model Service {
   id          String   @id @default(cuid())
@@ -42,6 +67,9 @@ model Booking {
   service     Service       @relation(fields: [serviceId], references: [id], onDelete: Restrict)
   clientName  String
   clientPhone String
+  /// Необязательный — если клиент указал, шлём на него письмо при
+  /// подтверждении/отмене записи (см. src/lib/mailer.ts).
+  clientEmail String?
   startsAt    DateTime
   endsAt      DateTime
   status      BookingStatus @default(PENDING)

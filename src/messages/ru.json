@@ -42,6 +42,7 @@
     "selectedLabel": "Записываем на",
     "namePlaceholder": "Ваше имя",
     "phonePlaceholder": "Телефон",
+    "emailPlaceholder": "Email (необязательно — пришлём подтверждение)",
     "notesPlaceholder": "Комментарий (необязательно)",
     "submit": "Отправить заявку",
     "submitting": "Отправляем…",

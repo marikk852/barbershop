@@ -53,3 +53,14 @@ export function PortfolioIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function UsersIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3.3 19c1-3.2 3.3-4.9 5.7-4.9s4.7 1.7 5.7 4.9" />
+      <path d="M15.5 4.6a3.2 3.2 0 0 1 0 6.2" />
+      <path d="M16.8 14.3c2 .4 3.6 1.9 4.4 4.7" />
+    </svg>
+  );
+}

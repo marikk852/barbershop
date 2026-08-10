@@ -9,12 +9,19 @@ function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number) {
   return aStart < bEnd && aEnd > bStart;
 }
 
+// Достаточно для отсечения явного мусора ("да", "-" и т.п.) — полная
+// RFC 5322 валидация email тут не нужна, письмо просто не уйдёт, если
+// адрес всё-таки невалиден (см. src/lib/mailer.ts, ошибка отправки не
+// валит запрос на создание записи).
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 interface CreateBookingBody {
   serviceId?: string;
   date?: string; // YYYY-MM-DD, в часовом поясе барбершопа
   time?: string; // HH:MM, в часовом поясе барбершопа
   clientName?: string;
   clientPhone?: string;
+  clientEmail?: string;
   notes?: string;
 }
 
@@ -46,6 +53,10 @@ export async function POST(request: Request) {
   // мусор ("-", "нет" и т.п.) не отсекая реальные номера.
   if ((clientPhone.match(/\d/g)?.length ?? 0) < 6) {
     return NextResponse.json({ error: "clientPhone doesn't look like a phone number" }, { status: 400 });
+  }
+  const clientEmail = body.clientEmail?.trim() || null;
+  if (clientEmail && !EMAIL_RE.test(clientEmail)) {
+    return NextResponse.json({ error: "clientEmail doesn't look like an email address" }, { status: 400 });
   }
 
   const service = await prisma.service.findUnique({ where: { id: serviceId } });
@@ -101,6 +112,7 @@ export async function POST(request: Request) {
       serviceId,
       clientName,
       clientPhone,
+      clientEmail,
       startsAt,
       endsAt,
       status: "PENDING",

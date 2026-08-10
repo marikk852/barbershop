@@ -42,6 +42,7 @@
     "selectedLabel": "Programare pentru",
     "namePlaceholder": "Numele tău",
     "phonePlaceholder": "Telefon",
+    "emailPlaceholder": "Email (opțional — trimitem confirmarea)",
     "notesPlaceholder": "Comentariu (opțional)",
     "submit": "Trimite cererea",
     "submitting": "Se trimite…",

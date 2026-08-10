@@ -84,6 +84,7 @@ export function BookingFlow() {
   // Форма контакта — последний шаг, после даты+времени+услуги.
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -220,6 +221,7 @@ export function BookingFlow() {
           time: selectedTime,
           clientName,
           clientPhone,
+          clientEmail: clientEmail.trim() || undefined,
           notes,
         }),
       });
@@ -339,6 +341,14 @@ export function BookingFlow() {
                 value={clientPhone}
                 onChange={(e) => setClientPhone(e.target.value)}
                 autoComplete="tel"
+              />
+              <input
+                className={styles.input}
+                type="email"
+                placeholder={t("emailPlaceholder")}
+                value={clientEmail}
+                onChange={(e) => setClientEmail(e.target.value)}
+                autoComplete="email"
               />
               <textarea
                 className={styles.textarea}

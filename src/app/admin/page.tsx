@@ -12,6 +12,7 @@ interface Booking {
   id: string;
   clientName: string;
   clientPhone: string;
+  clientEmail: string | null;
   startsAt: string;
   endsAt: string;
   status: BookingStatus;
@@ -116,6 +117,11 @@ export default function AdminPage() {
               <a className={styles.cardRow} href={`tel:${b.clientPhone.replace(/[^\d+]/g, "")}`}>
                 {b.clientPhone}
               </a>
+              {b.clientEmail && (
+                <a className={styles.cardRow} href={`mailto:${b.clientEmail}`}>
+                  {b.clientEmail}
+                </a>
+              )}
               {b.notes && <div className={styles.notes}>{b.notes}</div>}
 
               {(b.status === "PENDING" || b.status === "CONFIRMED") && (
