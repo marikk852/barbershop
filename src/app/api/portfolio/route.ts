@@ -11,6 +11,8 @@ export async function GET() {
       imageUrl: i.imageUrl,
       captionRu: i.captionRu,
       captionRo: i.captionRo,
+      width: i.width,
+      height: i.height,
     })),
   });
 }

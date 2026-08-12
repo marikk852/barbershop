@@ -158,16 +158,36 @@ a.badge:focus-visible svg {
 }
 
 /* ---------- Портфолио ---------- */
+/* Масонри (Pinterest-style) через CSS multi-column, не CSS grid: раньше
+   ячейки были жёстко зафиксированы под 4/5 — все фото либо резались
+   (cover), либо показывались с чёрными полями по бокам (contain), потому
+   что реальные телефонные фото почти никогда не 4/5. Тут высота каждой
+   ячейки не задана вообще — фото рендерится в СВОЮ настоящую пропорцию
+   (реальные width/height, см. PortfolioItem.width/height в схеме), сетка
+   сама подстраивается под колонку. Ничего не обрезается и не зависит от
+   наведения — видно сразу и полностью. */
 .portfolioGrid {
   margin-top: 22px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  /* 2 колонки на мобильном — 3 узкие колонки портретных фото (телефонные
+     кадры) на ~360px попапа делают каждую едва ли не в палец шириной,
+     детали стрижки не разглядеть. Тот же порог (640px), что и у
+     SSR-версии этой сетки (src/app/[locale]/portfolio/page.tsx, Tailwind
+     `columns-2 sm:columns-3`) — тут в CSS-модуле нет доступа к
+     Tailwind-брейкпоинтам, дублируем значение вручную. */
+  column-count: 2;
+  column-gap: 10px;
   overflow-y: auto;
+}
+@media (min-width: 640px) {
+  .portfolioGrid {
+    column-count: 3;
+  }
 }
 .portfolioItem {
   position: relative;
-  aspect-ratio: 4 / 5;
+  display: block;
+  break-inside: avoid;
+  margin-bottom: 10px;
   border-radius: 12px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.04);
@@ -180,15 +200,17 @@ a.badge:focus-visible svg {
   z-index: 1;
 }
 .portfolioImg {
-  /* contain, не cover: раньше высокие/узкие телефонные фото жёстко
-     обрезались под фиксированную ячейку 4/5 (лица/макушки уезжали за
-     край). contain вписывает фото целиком — по бокам/сверху-снизу может
-     остаться немного фона ячейки, но само фото никогда не режется. */
-  object-fit: contain;
+  /* width:100% + height:auto — реальный рендер идёт по естественной
+     пропорции фото, width/height-пропсы на <Image> (см. portfolio-flow.tsx)
+     нужны только next/image для формирования srcset, а не задают
+     видимый размер сами по себе. */
+  display: block;
+  width: 100%;
+  height: auto;
   transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .portfolioItem:hover .portfolioImg {
-  transform: scale(1.08);
+  transform: scale(1.04);
 }
 .portfolioCaption {
   position: absolute;
@@ -200,7 +222,14 @@ a.badge:focus-visible svg {
   color: #cfd6de;
 }
 .portfolioSkeleton {
+  /* Реальная высота у скелетона неизвестна заранее (пока не пришли
+     размеры с сервера) — фиксированный 4/5 тут безвреден, это временная
+     заглушка на секунду загрузки, не финальный рендер. break-inside:
+     avoid — тот же масонри-контейнер, что и у настоящих карточек. */
   aspect-ratio: 4 / 5;
+  display: block;
+  break-inside: avoid;
+  margin-bottom: 10px;
   border-radius: 12px;
   background: linear-gradient(90deg, rgba(255, 255, 255, 0.03) 25%, rgba(255, 255, 255, 0.07) 37%, rgba(255, 255, 255, 0.03) 63%);
   background-size: 400% 100%;

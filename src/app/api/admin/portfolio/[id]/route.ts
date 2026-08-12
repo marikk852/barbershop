@@ -7,6 +7,13 @@ interface UpdateBody {
   captionRu?: string | null;
   captionRo?: string | null;
   order?: number;
+  width?: number;
+  height?: number;
+}
+
+function parseDim(v: unknown): number | null | undefined {
+  if (v === undefined) return undefined; // не трогаем поле
+  return typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.round(v) : null;
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -24,6 +31,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         captionRu: body.captionRu === undefined ? undefined : body.captionRu?.trim() || null,
         captionRo: body.captionRo === undefined ? undefined : body.captionRo?.trim() || null,
         order: body.order,
+        // width/height — заполняются один раз при загрузке (см.
+        // admin/portfolio/page.tsx) либо задним числом бэкафилл-скриптом
+        // для фото, загруженных до появления этих полей.
+        width: parseDim(body.width),
+        height: parseDim(body.height),
       },
     });
     return NextResponse.json({ item });

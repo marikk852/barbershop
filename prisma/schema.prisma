@@ -122,6 +122,14 @@ model PortfolioItem {
   imageUrl  String
   captionRu String?
   captionRo String?
+  /// Реальные пиксельные размеры исходника — читаются в браузере при
+  /// загрузке (см. admin/portfolio/page.tsx) и передаются на сервер вместе
+  /// с imageUrl. Нужны публичной сетке портфолио для масонри-раскладки:
+  /// каждое фото показывается в своей настоящей пропорции (без обрезки/
+  /// чёрных полей), а next/image без fill требует width/height заранее,
+  /// не дожидаясь загрузки самого файла на клиенте.
+  width     Int?
+  height    Int?
   order     Int      @default(0)
   createdAt DateTime @default(now())
 

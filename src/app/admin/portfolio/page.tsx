@@ -48,6 +48,23 @@ export default function PortfolioPage() {
     fileInputRef.current?.click();
   }
 
+  // Реальные пиксельные размеры файла — читаем ДО загрузки, прямо в
+  // браузере (createImageBitmap не требует ничего, кроме самого File).
+  // Нужны публичной сетке портфолио для масонри-раскладки (каждое фото
+  // в своей настоящей пропорции, без обрезки/чёрных полей) — next/image
+  // без fill требует width/height заранее, сервер их сам не узнает, не
+  // скачивая и не декодируя файл целиком.
+  async function readDimensions(file: File): Promise<{ width: number; height: number } | null> {
+    try {
+      const bitmap = await createImageBitmap(file);
+      const dims = { width: bitmap.width, height: bitmap.height };
+      bitmap.close();
+      return dims;
+    } catch {
+      return null; // HEIC и подобное — не все браузеры умеют decode; сервер получит null, публичная сетка возьмёт дефолт
+    }
+  }
+
   async function handleFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = ""; // сброс, чтобы повторный выбор того же файла тоже сработал
@@ -57,16 +74,19 @@ export default function PortfolioPage() {
     setUploading(true);
     setProgress(0);
     try {
-      const blob = await upload(file.name, file, {
-        access: "public",
-        handleUploadUrl: "/api/admin/portfolio/upload",
-        headers: { Authorization: `tma ${initData}` },
-        onUploadProgress: ({ percentage }) => setProgress(percentage),
-      });
+      const [blob, dims] = await Promise.all([
+        upload(file.name, file, {
+          access: "public",
+          handleUploadUrl: "/api/admin/portfolio/upload",
+          headers: { Authorization: `tma ${initData}` },
+          onUploadProgress: ({ percentage }) => setProgress(percentage),
+        }),
+        readDimensions(file),
+      ]);
       const r = await adminFetch("/api/admin/portfolio", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl: blob.url }),
+        body: JSON.stringify({ imageUrl: blob.url, width: dims?.width, height: dims?.height }),
       });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Не удалось сохранить фото");
       haptic("success");

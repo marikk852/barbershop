@@ -6,6 +6,16 @@ interface CreateBody {
   imageUrl?: string;
   captionRu?: string;
   captionRo?: string;
+  width?: number;
+  height?: number;
+}
+
+// Валидные положительные целые пиксели, иначе null — некорректное или
+// отсутствующее значение не должно тихо записаться мусором (публичная
+// сетка при null просто использует безопасный дефолт вместо реальных
+// пропорций, см. portfolio-flow.tsx).
+function parseDim(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.round(v) : null;
 }
 
 export async function GET(request: Request) {
@@ -31,7 +41,14 @@ export async function POST(request: Request) {
 
   const order = ((await prisma.portfolioItem.aggregate({ _max: { order: true } }))._max.order ?? -1) + 1;
   const item = await prisma.portfolioItem.create({
-    data: { imageUrl, captionRu: body?.captionRu?.trim() || null, captionRo: body?.captionRo?.trim() || null, order },
+    data: {
+      imageUrl,
+      captionRu: body?.captionRu?.trim() || null,
+      captionRo: body?.captionRo?.trim() || null,
+      width: parseDim(body?.width),
+      height: parseDim(body?.height),
+      order,
+    },
   });
   return NextResponse.json({ item }, { status: 201 });
 }
