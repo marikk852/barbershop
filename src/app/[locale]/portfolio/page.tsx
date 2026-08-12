@@ -30,12 +30,18 @@ export default async function PortfolioPage() {
           const caption = locale === "ro" ? item.captionRo : item.captionRu;
           return (
             <figure key={item.id} className="group relative mb-3 break-inside-avoid overflow-hidden rounded-md">
+              {/* loading="eager" — см. тот же комментарий в portfolio-flow.tsx:
+                  IntersectionObserver-based lazy loading ненадёжно
+                  отрабатывает в узких вложенных скролл-контейнерах
+                  (особенно Safari/WebKit), часть фото не подгружалась без
+                  ручного скролла мимо них. Фото немного — грузим все сразу. */}
               <Image
                 src={item.imageUrl}
                 alt={caption ?? ""}
                 width={item.width ?? FALLBACK_W}
                 height={item.height ?? FALLBACK_H}
                 sizes="(max-width: 640px) 50vw, 33vw"
+                loading="eager"
                 className="block h-auto w-full transition-transform duration-300 group-hover:scale-105"
               />
               {caption && (
