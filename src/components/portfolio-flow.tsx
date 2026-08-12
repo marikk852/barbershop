@@ -44,7 +44,15 @@ export function PortfolioFlow() {
         const caption = locale === "ro" ? item.captionRo : item.captionRu;
         return (
           <figure key={item.id} className={styles.portfolioItem}>
-            <Image src={item.imageUrl} alt={caption ?? ""} fill sizes="33vw" className={styles.portfolioImg} />
+            {/* loading="eager", не дефолтный lazy: сетка скроллится ВНУТРИ
+                своего контейнера (.portfolioGrid — overflow-y: auto), а не
+                вместе со страницей — IntersectionObserver-based ленивая
+                подгрузка ненадёжно отрабатывает во вложенном скролл-
+                контейнере (особенно в Safari/WebKit), часть фото просто не
+                подгружалась, пока пользователь не проскроллит мимо них.
+                Фото немного (десяток-полтора) — грузим все сразу при
+                открытии, а не по мере скролла. */}
+            <Image src={item.imageUrl} alt={caption ?? ""} fill sizes="33vw" loading="eager" className={styles.portfolioImg} />
             {caption && <figcaption className={styles.portfolioCaption}>{caption}</figcaption>}
           </figure>
         );
