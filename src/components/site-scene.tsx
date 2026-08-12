@@ -932,6 +932,14 @@ export function SiteScene() {
       // зума (общий по всему кольцу + более сильный узкий слой у самого
       // края — "bulge") плюс декоративный градиентный блик-обводка поверх.
       const lensCtxs = lensCanvases.map((c) => c.getContext("2d"));
+      // rimPath/strokeGrad ниже зависят ТОЛЬКО от текущего размера канваса
+      // линзы (lens.width/height) — тот меняется лишь при ресайзе/реф-
+      // лоу капсулы, не каждый кадр. Раньше оба пересобирались заново на
+      // каждый вызов drawLenses() (до 60 раз/сек × до 4 линз) — чистый
+      // лишний CPU без единого визуального отличия, кэшируем по паре
+      // (width, height) и пересобираем только когда она реально меняется.
+      const lensPathCache: ({ w: number; h: number; rimPath: Path2D; strokeGrad: CanvasGradient } | null)[] =
+        lensCanvases.map(() => null);
       const LENS_ZOOM = 1.22; // общее увеличение по всему кольцу
       const LENS_RIM_ZOOM = 2.6; // усиленное увеличение в узкой полосе у самого края — "bulge"
       // Искажение — только кольцом у самого края капсулы (толще видимой
@@ -987,14 +995,27 @@ export function SiteScene() {
           const rim = LENS_RIM_BAND * dpr;
           const rw = lens.width - rim * 2;
           const rh = lens.height - rim * 2;
-          if (rw > 0 && rh > 0) {
+          // rimPath и strokeGrad (ниже) зависят только от lens.width/height,
+          // который стабилен между кадрами (меняется лишь при ресайзе) —
+          // пересобираем их не на каждый вызов, а только когда размер
+          // реально поменялся, и переиспользуем кадр за кадром.
+          let cached = lensPathCache[i];
+          if (rw > 0 && rh > 0 && (!cached || cached.w !== lens.width || cached.h !== lens.height)) {
             const rimPath = new Path2D();
             rimPath.roundRect(0, 0, lens.width, lens.height, pillR);
             rimPath.roundRect(rim, rim, rw, rh, Math.min(rw, rh) / 2);
+            const strokeGrad = ctx.createLinearGradient(0, 0, lens.width, lens.height);
+            strokeGrad.addColorStop(0, "rgba(200,236,255,0.85)");
+            strokeGrad.addColorStop(0.5, "rgba(255,255,255,0)");
+            strokeGrad.addColorStop(1, "rgba(255,196,150,0.6)");
+            cached = { w: lens.width, h: lens.height, rimPath, strokeGrad };
+            lensPathCache[i] = cached;
+          }
+          if (rw > 0 && rh > 0 && cached) {
             const rsw = (r.width / LENS_RIM_ZOOM) * dpr;
             const rsh = (r.height / LENS_RIM_ZOOM) * dpr;
             ctx.save();
-            ctx.clip(rimPath, "evenodd");
+            ctx.clip(cached.rimPath, "evenodd");
             try {
               ctx.drawImage(canvas, cx - rsw / 2, cy - rsh / 2, rsw, rsh, 0, 0, lens.width, lens.height);
             } catch {
@@ -1024,14 +1045,22 @@ export function SiteScene() {
           // (холодный голубоватый блик сверху-слева → тёплый снизу-справа)
           // — дешёвая имитация хроматической аберрации/переливов по кромке
           // настоящего стекла, без честного разложения по RGB-каналам.
+          // Тот же градиент, что и в кэше выше (rw/rh>0 в любой реальной
+          // капсуле, так что cached.strokeGrad почти всегда уже есть; на
+          // случай вырожденного размера — фолбэк собирает разовый градиент
+          // на месте, ничего не теряя визуально).
           ctx.save();
           ctx.globalCompositeOperation = "screen";
           ctx.globalAlpha = 0.5;
-          const grad = ctx.createLinearGradient(0, 0, lens.width, lens.height);
-          grad.addColorStop(0, "rgba(200,236,255,0.85)");
-          grad.addColorStop(0.5, "rgba(255,255,255,0)");
-          grad.addColorStop(1, "rgba(255,196,150,0.6)");
-          ctx.strokeStyle = grad;
+          if (!cached) {
+            const oneOff = ctx.createLinearGradient(0, 0, lens.width, lens.height);
+            oneOff.addColorStop(0, "rgba(200,236,255,0.85)");
+            oneOff.addColorStop(0.5, "rgba(255,255,255,0)");
+            oneOff.addColorStop(1, "rgba(255,196,150,0.6)");
+            ctx.strokeStyle = oneOff;
+          } else {
+            ctx.strokeStyle = cached.strokeGrad;
+          }
           ctx.lineWidth = Math.max(1, ring * 0.3);
           ctx.filter = `blur(${LENS_FEATHER * 0.5 * dpr}px)`;
           const inset = ring * 0.55;
@@ -1160,7 +1189,17 @@ export function SiteScene() {
           hintEl!.style.opacity = String(1 - seg(p, 0, 0.12));
         }
 
-        renderer.render(scene, camera);
+        // На скрытой вкладке (свернули/переключились) рисовать в WebGL
+        // некому — rAF в фоне и так триммируется браузером до ~1 кадра/с,
+        // но на тех редких кадрах, что всё же проходят, сам render() —
+        // самая дорогая операция во всём цикле. Пропускаем её впустую:
+        // ничего не видно, разницы нет, зато не жжём GPU/батарею в фоне.
+        // Состояние (p/spin/camera и т.д.) продолжает считаться выше как
+        // обычно — так что при возврате на вкладку сцена не "застыла" и
+        // не дёрнется, просто продолжит оттуда, где реально остановилась.
+        if (!document.hidden) {
+          renderer.render(scene, camera);
+        }
 
         if (heroMenu > 0 && !navCollapsedRef.current) {
           colorSampleAcc += dt;
@@ -1420,11 +1459,27 @@ export function SiteScene() {
 
       {heroFirstVisit && (
         <div ref={hintRef} className={styles.hint}>
-          <span className={styles.bar} />
-          <span className={styles.dot} />
-          <span>{t("hint")}</span>
-          <span className={styles.dot} />
-          <span className={`${styles.bar} ${styles.barR}`} />
+          <div className={styles.upWave} aria-hidden="true">
+            {/* Верхний шеврон загорается последним (delay 0.32s), нижний —
+                первым (0s): порядок в разметке сверху вниз = порядок на
+                экране, волна читается как бегущая вверх подсветка. */}
+            <svg className={styles.chevron} viewBox="0 0 48 28" style={{ animationDelay: "0.32s" }}>
+              <path d="M4 24 L24 4 L44 24" />
+            </svg>
+            <svg className={styles.chevron} viewBox="0 0 48 28" style={{ animationDelay: "0.16s" }}>
+              <path d="M4 24 L24 4 L44 24" />
+            </svg>
+            <svg className={styles.chevron} viewBox="0 0 48 28" style={{ animationDelay: "0s" }}>
+              <path d="M4 24 L24 4 L44 24" />
+            </svg>
+          </div>
+          <div className={styles.hintRow}>
+            <span className={styles.bar} />
+            <span className={styles.dot} />
+            <span>{t("hint")}</span>
+            <span className={styles.dot} />
+            <span className={`${styles.bar} ${styles.barR}`} />
+          </div>
         </div>
       )}
 

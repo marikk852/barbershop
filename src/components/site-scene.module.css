@@ -359,15 +359,53 @@
   transform: translateX(-50%);
   z-index: 5;
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  pointer-events: none;
+  transition: opacity 0.5s;
+}
+.hintRow {
+  display: flex;
   align-items: center;
   gap: 12px;
   font-size: 11px;
   letter-spacing: 0.26em;
   text-transform: uppercase;
   color: #3b434c;
-  pointer-events: none;
-  transition: opacity 0.5s;
 }
+
+/* Стопка шевронов "вверх" над текстовой подсказкой — волна снизу вверх,
+   намекает на жест "потяни вверх, чтобы раскрыть". Живёт в том же .hint
+   (см. site-scene.tsx) — исчезает вместе с текстом тем же opacity,
+   который каждый кадр выставляет WebGL-цикл, отдельного JS не нужно. */
+.upWave {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.chevron {
+  width: 22px;
+  height: 13px;
+  opacity: 0.25;
+  animation: chevronWave 1.8s ease-in-out infinite;
+}
+.chevron path {
+  fill: none;
+  stroke: #ffd400;
+  stroke-width: 9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+@keyframes chevronWave {
+  0%, 55%, 100% { opacity: 0.25; }
+  20% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chevron { animation: none; opacity: 0.7; }
+}
+
 .dot {
   width: 5px;
   height: 5px;
