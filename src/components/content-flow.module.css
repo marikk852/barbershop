@@ -199,19 +199,13 @@ a.badge:focus-visible svg {
   overflow: hidden;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.07);
-  transition: border-color 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.portfolioItem:hover {
-  border-color: rgba(216, 31, 38, 0.5);
-  transform: translateY(-2px);
-  z-index: 1;
+  /* Осознанно без hover-transform/scale: в сетке с 10px-гэпом
+     translateY+scale на наведении наезжали на соседние ряды/колонки —
+     выглядело как "фото накладываются друг на друга". Плюс это
+     Telegram Mini App, hover — не основной способ взаимодействия. */
 }
 .portfolioImg {
   object-fit: cover;
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.portfolioItem:hover .portfolioImg {
-  transform: scale(1.08);
 }
 .portfolioCaption {
   position: absolute;
@@ -231,5 +225,4 @@ a.badge:focus-visible svg {
 }
 @media (prefers-reduced-motion: reduce) {
   .portfolioSkeleton { animation: none; background: rgba(255, 255, 255, 0.04); }
-  .portfolioItem, .portfolioImg { transition: none; }
 }
