@@ -710,12 +710,6 @@
 }
 
 /* ================= попап "Запись на стрижку" ================= */
-.navItemHidden {
-  /* visibility, не opacity/display — не спорит с per-frame
-     `a.style.opacity`, которое каждый кадр выставляет WebGL-цикл
-     (site-scene.tsx), и не ломает раскладку остальных капсул меню. */
-  visibility: hidden;
-}
 .bookingOverlay {
   position: fixed;
   inset: 0;
@@ -784,39 +778,6 @@
   transform: translateY(0);
   pointer-events: auto;
 }
-.bookingEcho {
-  /* Позиция примерно повторяет расклад .heroNav a (padding 12px 22px,
-     gap 14px, по центру вертикали) — та же точка, где эта надпись сидела
-     в капсуле меню, и куда она должна вернуться при закрытии. */
-  position: absolute;
-  left: 22px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  opacity: 1;
-  pointer-events: none;
-  transition: opacity 0.3s ease;
-}
-.bookingEchoOut {
-  opacity: 0;
-}
-.bookingEchoNum {
-  font-size: 12px;
-  letter-spacing: 0.28em;
-  color: #fff;
-  font-variant-numeric: tabular-nums;
-}
-.bookingEchoLbl {
-  font-family: var(--font-bodoni), Didot, serif;
-  font-weight: 500;
-  font-size: clamp(16px, 2.1vw, 22px);
-  letter-spacing: 0.01em;
-  color: #fff;
-  white-space: nowrap;
-}
 .bookingClose {
   position: absolute;
   top: 16px;
@@ -862,5 +823,5 @@
   .markwrap { transform: scale(1); animation: none; }
   .word span { opacity: 1; transform: none; filter: none; animation: none; }
   .sub { opacity: 0.92; letter-spacing: 0.46em; text-indent: 0.46em; animation: none; }
-  .bookingOverlay, .bookingPanel, .bookingContent, .bookingEcho { transition: none; }
+  .bookingOverlay, .bookingPanel, .bookingContent { transition: none; }
 }

@@ -184,14 +184,19 @@ export function SiteScene() {
   const [dockMode, setDockMode] = useState(false);
 
   const popupPanelRef = useRef<HTMLDivElement>(null);
+  // Только для кроссфейда контента при переключении между двумя уже
+  // открытыми попапами (см. switchPopup/pendingSwitchIndexRef ниже) —
+  // геометрия панели (popupPanelRef) при этом не трогается вообще.
+  const popupContentRef = useRef<HTMLDivElement>(null);
   const popupCloseBtnRef = useRef<HTMLButtonElement>(null);
   const prevOverflowRef = useRef("");
-  // Пункт, который нужно открыть СРАЗУ ПОСЛЕ того, как текущий попап
-  // реально доедет до закрытия (переключение между двумя открытыми
-  // попапами — "сперва закрытие предыдущего, потом открытие нового").
-  // null — обычное закрытие (без следующего), тогда меню разворачивается
-  // обратно в вертикальное.
-  const pendingIndexRef = useRef<number | null>(null);
+  // Пункт, на который переключаемся кроссфейдом контента, пока текущий
+  // попап уже открыт (см. switchPopup): fade out текущего содержимого ->
+  // по transitionend меняем activeIndex -> fade in нового. Геометрия
+  // панели при этом не анимируется — все 4 попапа открываются в одну и ту
+  // же рамку (.bookingPanel), сжимать её в док и растить обратно незачем.
+  // null, пока переключение не идёт.
+  const pendingSwitchIndexRef = useRef<number | null>(null);
   const navWrapRefs = useRef<(HTMLDivElement | null)[]>([]);
   const spineRef = useRef<HTMLDivElement>(null);
   const flipBeforeRef = useRef<{ items: (Rect | null)[]; links: (Rect | null)[]; spine: Rect | null } | null>(null);
@@ -420,28 +425,28 @@ export function SiteScene() {
       setPopupContentIn(reduced);
     } else if (reduced) {
       // Меню уже в доке, но без анимаций — переключаемся мгновенно.
-      setPopupOrigin(rect);
       setActiveIndex(index);
-      setPopupPhase("open");
       setPopupContentIn(true);
     } else {
-      // Меню уже в доке — переключение между попапами: сперва закрываем
-      // текущий (до ЕГО ТЕКУЩЕЙ доковой иконки — popupOrigin ещё хранит
-      // геометрию самого первого открытия, из вертикального меню, её
-      // обязательно обновить перед схлопыванием, иначе панель уедет не
-      // туда), затем (см. transitionend-эффект ниже) открываем новый от
-      // его доковой иконки.
-      const closingRect = rectOf(heroLinkRefs.current[activeIndex]);
-      if (closingRect) setPopupOrigin(closingRect);
-      pendingIndexRef.current = index;
+      // Меню уже в доке — переключение между двумя УЖЕ открытыми
+      // попапами. Геометрия .bookingPanel одинакова для всех 4 пунктов —
+      // сжимать панель в док и растить её обратно незачем, это и давало
+      // заметное "сначала закрылся, потом открылся". Вместо этого панель
+      // остаётся на месте (popupPhase так и остаётся "open"), меняется
+      // кроссфейдом только содержимое: fade out -> смена activeIndex ->
+      // fade in (см. эффект на popupContentRef ниже).
+      pendingSwitchIndexRef.current = index;
       setPopupContentIn(false);
-      setPopupPhase("closing");
     }
   }
 
   function closePopup() {
     setPopupContentIn(false);
-    pendingIndexRef.current = null; // обычное закрытие — без следующего пункта
+    // Если в момент закрытия шло кроссфейд-переключение на другой попап
+    // (см. switchPopup-ветку в handleNavClick) — отменяем его: иначе уже
+    // запущенный fade-out контента доиграет своим transitionend и эффект
+    // ниже откроет pending-пункт вместо настоящего закрытия.
+    pendingSwitchIndexRef.current = null;
     // Базовый .heroNav a стартует с opacity:0 (см. комментарий у
     // .heroNavDock a в CSS) — единственное, что держит капсулы видимыми
     // В ВЕРТИКАЛИ, это `a.style.opacity`, который каждый кадр выставляет
@@ -454,13 +459,9 @@ export function SiteScene() {
     // восстановлен с момента открытия. Пока navCollapsedRef не
     // синхронизируется (это обычный useEffect, после покраски) и
     // WebGL-цикл не выставит a.style.opacity сам, есть реальный кадр
-    // (иногда больше одного), где капсула визуально гаснет в 0 сразу
-    // после снятия navItemHidden — на всегда видимых 3 капсулах это
-    // почти незаметно (мелькание на уже знакомом элементе), а на
-    // капсуле, которая только что стала видимой впервые (см. фикс выше
-    // про navItemHidden), это читается как "показалась пустой/плоской
-    // на долю секунды, потом рывком проявилась". Ставим opacity явно
-    // здесь же, синхронно, до всякой покраски — зазора не остаётся.
+    // (иногда больше одного), где все 4 капсулы визуально гаснут в 0 —
+    // мелькание на уже знакомых элементах. Ставим opacity явно здесь же,
+    // синхронно, до всякой покраски — зазора не остаётся.
     heroLinkRefs.current.forEach((a) => { if (a) a.style.opacity = "1"; });
     if (prefersReducedMotion()) {
       finalizeClose(activeIndex);
@@ -487,10 +488,12 @@ export function SiteScene() {
     return () => cancelAnimationFrame(raf);
   }, [popupPhase]);
 
-  // transitionend по 'width' — надёжный сигнал "геометрия доехала", в обе
-  // стороны: вперёд — показать контент попапа; назад — либо открыть
-  // отложенный pendingIndexRef (переключение между попапами), либо
-  // по-настоящему закрыть и развернуть меню обратно в вертикальное.
+  // transitionend по 'width' — надёжный сигнал "геометрия доехала": вперёд
+  // — показать контент попапа; назад — попап реально закрылся, развернуть
+  // меню обратно в вертикальное. Переключение между двумя уже открытыми
+  // попапами сюда больше не попадает — оно не трогает geometрию/popupPhase
+  // вообще (см. switchPopup-эффект ниже), так что "closing" здесь всегда
+  // означает настоящее закрытие.
   useEffect(() => {
     if (popupPhase === "closed") return;
     const panel = popupPanelRef.current;
@@ -502,23 +505,36 @@ export function SiteScene() {
         return;
       }
       if (popupPhase !== "closing") return;
-      const pending = pendingIndexRef.current;
-      pendingIndexRef.current = null;
-      if (pending !== null) {
-        const rect = rectOf(heroLinkRefs.current[pending]);
-        if (rect) {
-          setPopupOrigin(rect);
-          setActiveIndex(pending);
-          setPopupPhase("opening");
-          return;
-        }
-      }
       finalizeClose(activeIndex);
     };
     panel.addEventListener("transitionend", onEnd);
     return () => panel.removeEventListener("transitionend", onEnd);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [popupPhase]);
+
+  // Кроссфейд-переключение между двумя уже открытыми попапами (см.
+  // switchPopup-ветку в handleNavClick): transitionend по 'opacity' на
+  // содержимом — надёжный сигнал "fade out доехал". Если в этот момент
+  // есть отложенный pendingSwitchIndexRef — меняем activeIndex и
+  // следующим кадром запускаем fade in. rAF (не синхронно) — та же причина,
+  // что и у opening -> open выше: React рискует схлопнуть смену activeIndex
+  // и popupContentIn(true) в один коммит, и браузер ни разу не отрисует
+  // промежуточный "контент погас" кадр — переход пропадёт.
+  useEffect(() => {
+    const content = popupContentRef.current;
+    if (!content) return;
+    const onEnd = (e: TransitionEvent) => {
+      if (e.propertyName !== "opacity") return;
+      if (popupContentIn) return; // это конец fade-in, не fade-out — не наш случай
+      const pending = pendingSwitchIndexRef.current;
+      if (pending === null) return;
+      pendingSwitchIndexRef.current = null;
+      setActiveIndex(pending);
+      requestAnimationFrame(() => setPopupContentIn(true));
+    };
+    content.addEventListener("transitionend", onEnd);
+    return () => content.removeEventListener("transitionend", onEnd);
+  }, [popupContentIn]);
 
   useEffect(() => {
     if (popupContentIn) popupCloseBtnRef.current?.focus();
@@ -1339,28 +1355,16 @@ export function SiteScene() {
                 href={item.href}
                 ref={(el) => { heroLinkRefs.current[i] = el; }}
                 onClick={(e) => handleNavClick(e, i)}
-                // Пока открыт ЕГО попап (opening/open), реальная капсула/
-                // иконка визуально не нужна — попап и есть она же, только
-                // увеличенная. visibility (не opacity) — чтобы не спорить
-                // с per-frame `a.style.opacity` из WebGL-цикла (та трогает
-                // только opacity, и то лишь пока меню не свёрнуто в док).
-                //
-                // НАРОЧНО не скрываем на "closing": раньше пункт оставался
-                // invisible вплоть до finalizeClose (конец всей анимации),
-                // пока его собственный CSS-переход геометрии (circle -> pill,
-                // .heroNav a: width/height/padding/border-radius, 0.5s) шёл
-                // ВЕСЬ ЭТО ВРЕМЯ невидимо. На практике браузеры ненадёжно
-                // доигрывают CSS-transition на visibility:hidden элементе —
-                // переход может не стартовать/не завершиться, пока элемент
-                // скрыт, и "доедет" только при следующем пересчёте стилей
-                // (hover, resize, что угодно) — снаружи это выглядело как
-                // капсула, застрявшая маленькой и плоской ("серой") на
-                // произвольное время, а потом рывком добор до стеклянного
-                // вида. Раскрываем сразу с началом closing — тогда её
-                // возврат в вертикаль анимируется ВСЁ ВРЕМЯ на виду, точно
-                // так же, как у остальных 3 капсул (которые никогда не
-                // скрываются и поэтому всегда анимируются гладко).
-                className={activeIndex === i && (popupPhase === "opening" || popupPhase === "open") ? styles.navItemHidden : undefined}
+                // Раньше активная капсула пряталась (navItemHidden) на всё
+                // время, пока её попап открыт — задумывалось для старого
+                // дизайна, где капсула буквально морфировала в попап на
+                // том же месте. В доке капсула и попап физически не
+                // пересекаются (капсула — маленький кружок внизу, попап —
+                // во весь экран, см. .heroNavDock z-index:70 выше
+                // .bookingOverlay), поэтому прятать незачем — капсула летит
+                // в док через тот же FLIP, что и остальные 3, и остаётся на
+                // виду всё время, пока её попап открыт (см. память проекта:
+                // раньше это читалось как "кнопка пропала из дока").
               >
                 <canvas
                   ref={(el) => { heroLensRefs.current[i] = el; }}
@@ -1415,29 +1419,15 @@ export function SiteScene() {
                   : undefined
               }
             >
-              {/* "Эхо" кнопки — то же число+подпись, что и в капсуле/иконке
-                  меню. Видно, пока контент попапа ещё не показан, в САМОМ
-                  НАЧАЛЕ ОТКРЫТИЯ — реальная капсула там всё ещё скрыта
-                  (navItemHidden, см. JSX ниже), и без эха геометрия честно
-                  доезжает до размера источника, но выглядит как
-                  сжимающийся пустой блик.
-                  На ЗАКРЫТИИ эхо специально НЕ показываем (принудительно
-                  через bookingEchoOut, а не только через popupContentIn):
-                  реальная капсула теперь раскрыта и анимируется с самого
-                  начала closing (см. navItemHidden ниже), сама несёт
-                  подпись всю дорогу назад в вертикаль. Если ЗДЕСЬ тоже
-                  показать эхо — оно едет к своей ТОЧКЕ (popupOrigin, дно
-                  дока), а настоящая капсула летит совсем в другую сторону
-                  (в вертикальное меню) — два разных текста одновременно,
-                  воспринимается как рывок "заголовок попапа -> название
-                  кнопки". Без эха при закрытии — панель просто гаснет
-                  пустым стеклянным пузырём, а единственный видимый текст
-                  всё время — настоящая капсула. */}
-              <div className={`${styles.bookingEcho} ${popupContentIn || popupPhase === "closing" ? styles.bookingEchoOut : ""}`}>
-                <span className={styles.bookingEchoNum}>{item.num}</span>
-                <span className={styles.bookingEchoLbl}>{nav(item.key)}</span>
-              </div>
-              <div className={`${styles.bookingContent} ${popupContentIn ? styles.bookingContentIn : ""}`}>
+              {/* Раньше здесь было "эхо" кнопки (число+подпись) — заглушка
+                  на время роста панели, пока реальная капсула была скрыта
+                  (navItemHidden). Капсула больше не прячется (см. JSX
+                  меню выше) и сама летит через FLIP в свою доковую точку —
+                  эхо-заглушка больше не нужна, капсула несёт эту роль сама. */}
+              <div
+                ref={popupContentRef}
+                className={`${styles.bookingContent} ${popupContentIn ? styles.bookingContentIn : ""}`}
+              >
                 <button
                   ref={popupCloseBtnRef}
                   type="button"
