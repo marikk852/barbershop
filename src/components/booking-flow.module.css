@@ -136,7 +136,21 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
   gap: 8px;
-  overflow-y: auto;
+  /* Раньше был overflow-y:auto — .slotGrid, будучи flex-item'ом внутри
+     .flow (flex-direction:column, flex:1, min-height:0), из-за этого
+     получал автоматический min-height:0 (та же особенность, что чинили
+     у .portfolioGrid в попапе портфолио — см. site-scene.module.css) и
+     схлопывался до ВЫСОТЫ 0, когда остальной контент .flow (услуги,
+     форма) не помещался целиком: сетка времени была в DOM и кликабельна
+     по координатам, но визуально ПОЛНОСТЬЮ пропадала — пользователь не
+     мог выбрать время и подтвердить запись. Здесь, в отличие от
+     .portfolioGrid, свой независимый скролл не нужен вообще — вся
+     .flow целиком и так скроллится через .bookingContent снаружи
+     (тот же принцип, что и у .serviceGrid ниже, у неё никогда не было
+     overflow-y). flex-shrink:0 — дополнительная защита, чтобы сетка
+     времени не сжималась вообще, даже если что-то из этого снова
+     изменится. */
+  flex-shrink: 0;
   padding-right: 2px;
 }
 .slot {
