@@ -729,9 +729,27 @@
      transform), calc() даёт финал теми же единицами (px), что и старт. */
   position: fixed;
   left: calc(50vw - min(300px, 46vw));
-  top: calc(50vh - min(330px, 43vh));
+  /* Резерв снизу — под горизонтальный док (.heroNavDock), чтобы попап
+     никогда с ним визуально не пересекался. Самая высокая capsule дока —
+     "Запись" (.navItemFeatured, dockOrder:3): 64px иконка + 4px
+     margin-top подписи + 14px высота подписи + собственный
+     translateY(-8px) = 90px от нижней границы дока
+     (.heroNavDock {bottom: max(22px, safe-area)}) до её верхней точки.
+     +16px сверху — видимый зазор, чтобы попап не липнул к доку впритык.
+     Если изменится размер/подъём featured-капсулы в доке — эти числа
+     нужно поправить синхронно (см. .heroNavDock .navItemFeatured,
+     .heroNavDock a, .heroNavDock .navCaption выше).
+     top-gap — симметричный отступ сверху (24px + safe-area на случай
+     чёлки/статус-бара).
+     dvh, не vh — на мобильном адресная строка меняет видимую высоту, а
+     док зафиксирован именно к РЕАЛЬНО видимому низу экрана. */
+  --popup-bottom-gap: calc(max(22px, env(safe-area-inset-bottom, 0px)) + 106px);
+  --popup-top-gap: calc(max(24px, env(safe-area-inset-top, 0px)) + 16px);
+  --popup-safe-h: calc(100dvh - var(--popup-top-gap) - var(--popup-bottom-gap));
+  --popup-h: min(660px, var(--popup-safe-h));
+  top: calc(var(--popup-top-gap) + (var(--popup-safe-h) - var(--popup-h)) / 2);
   width: min(600px, 92vw);
-  height: min(660px, 86vh);
+  height: var(--popup-h);
   border-radius: 28px;
   overflow: hidden;
   background: rgba(15, 16, 19, 0.68);
