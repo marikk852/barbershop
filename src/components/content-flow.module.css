@@ -176,6 +176,12 @@ a.badge:focus-visible svg {
   grid-template-columns: repeat(2, 1fr);
   gap: 10px;
   overflow-y: auto;
+  /* Контейнер — flex-item внутри .bookingContent (ограниченная высота),
+     из-за неявного min-height:0 grid-auto-rows:auto растягивает/сжимает
+     ряды под доступную высоту вместо natural (aspect-ratio) размера.
+     align-content:start фиксирует ряды в их естественной высоте, скролл
+     остаётся на overflow-y выше. */
+  align-content: start;
 }
 @media (min-width: 640px) {
   .portfolioGrid {
