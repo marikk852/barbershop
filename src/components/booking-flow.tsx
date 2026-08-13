@@ -405,6 +405,16 @@ export function BookingFlow() {
         ))}
       </div>
 
+      {/* Самый первый заход (monthData ещё null, а не просто смена месяца) —
+          сетка уже нарисована числами, но ВСЕ дни временно disabled (см.
+          isDisabled: "до загрузки графика ничего не кликабельно"), а
+          затемнение (.calGridLoading) само по себе легко прочитать как
+          "тут пусто/сломано", особенно на холодном старте serverless-
+          функции (Vercel), где первый запрос к /api/booking/month может
+          занять пару секунд. Явный текст — та же подсказка, что и у
+          загрузки времени ниже (t("loading")). Сетку не подменяем (нет
+          дизайн-прыжка, когда данные придут) — просто подсказка сверху. */}
+      {!monthData && <p className={styles.hint}>{t("loading")}</p>}
       <div className={`${styles.calGrid} ${monthLoading ? styles.calGridLoading : ""}`}>
         {grid.map((cell, i) =>
           cell === null ? (
