@@ -33,7 +33,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 .monthTitle {
   font-family: var(--font-bodoni), Didot, serif;
@@ -72,7 +72,7 @@
 .weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 .weekdays span {
   text-align: center;
@@ -85,7 +85,7 @@
 .calGrid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: 3px;
   transition: opacity 0.15s ease;
 }
 .calGridLoading {
@@ -93,7 +93,11 @@
   pointer-events: none;
 }
 .day {
-  aspect-ratio: 1;
+  /* Раньше квадрат (aspect-ratio:1) — при 6-недельном месяце (до 6 строк)
+     календарь целиком не помещался в попап без скролла. Ячейки шире, чем
+     выше (4/3, а не 1/1) — вся сетка ниже примерно на четверть, при этом
+     ширины всё ещё с запасом хватает под двузначное число дня. */
+  aspect-ratio: 4 / 3;
   /* Раньше border:none + фон rgba(255,255,255,0.045) — на тёмной
      blur-подложке попапа почти неотличимо от самого фона, весь календарь
      читался как "плоский", непонятно что вообще кликабельно. Явная
@@ -103,7 +107,7 @@
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.035);
   color: #e4e8ec;
-  font-size: 14px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
