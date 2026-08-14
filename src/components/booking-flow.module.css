@@ -364,3 +364,27 @@
   color: #e4e8ec;
   margin: 0;
 }
+
+/* Фирменный синий Telegram (#229ED9), не красный акцент сайта —
+   намеренно: это переход на ВНЕШНИЙ сервис (t.me), должен читаться как
+   "другое действие", не как продолжение формы (тот же принцип, что
+   отличает .continueBtn — красный, "внутри формы" — от этой кнопки). */
+.telegramLink {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(34, 158, 217, 0.5);
+  background: rgba(34, 158, 217, 0.15);
+  color: #5ebbe8;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.telegramLink:hover,
+.telegramLink:focus-visible {
+  background: rgba(34, 158, 217, 0.28);
+  border-color: rgba(34, 158, 217, 0.8);
+  outline: none;
+}

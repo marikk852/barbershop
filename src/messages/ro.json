@@ -48,6 +48,7 @@
     "submitting": "Se trimite…",
     "successTitle": "Cererea a fost trimisă!",
     "successText": "Barberul te va contacta pentru a confirma programarea.",
+    "telegramLink": "Primește notificări în Telegram",
     "slotTaken": "Această oră tocmai a fost ocupată — alege alta din grila de mai sus.",
     "genericError": "Nu am putut trimite cererea — încearcă din nou."
   }

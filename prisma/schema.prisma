@@ -88,6 +88,13 @@ model Booking {
   /// отредактировать то же сообщение вместо отправки нового (задача #8).
   telegramMessageId Int?
 
+  /// chat_id клиента в Telegram — заполняется, когда клиент переходит по
+  /// ссылке "Получать уведомления в Telegram" на экране успеха (deep
+  /// link ?start=<id этой записи>) и жмёт /start у бота (см. /api/
+  /// telegram/webhook). NULL, если клиент не переходил по ссылке —
+  /// тогда уведомление о статусе шлётся только на email (если указан).
+  clientTelegramChatId BigInt?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { localWeekday, zonedTimeToUtc } from "@/lib/shop-time";
+import { notifyAdminNewBooking } from "@/lib/telegram-bot";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;
@@ -153,6 +154,28 @@ export async function POST(request: Request) {
     // конфликт, поведение формы (сброс времени + перезапрос сетки)
     // одинаковое в обоих случаях.
     return NextResponse.json({ error: "slot no longer available" }, { status: 409 });
+  }
+
+  // Уведомление барберу в Telegram — best-effort, та же логика, что и
+  // email-уведомления в applyBookingStatus: запись уже создана и
+  // сохранена независимо от исхода отправки, await — чтобы serverless-
+  // функция не была убита раньше, чем допишет запрос к Bot API.
+  // message_id сохраняем ОТДЕЛЬНЫМ update (не в исходном create) —
+  // сам message_id физически появляется только ПОСЛЕ того, как
+  // сообщение реально отправлено, требует id уже созданной записи
+  // (используется в кнопках confirm:<id>/cancel:<id>) — курица и яйцо,
+  // будь это одним запросом.
+  const telegramMessageId = await notifyAdminNewBooking({
+    id: booking.id,
+    clientName,
+    clientPhone,
+    startsAt,
+    servicesLabel: services.map((s) => s.nameRu).join(" + "),
+    totalDurationMin,
+    totalPriceCents: services.reduce((acc, s) => acc + s.priceCents, 0),
+  });
+  if (telegramMessageId) {
+    await prisma.booking.update({ where: { id: booking.id }, data: { telegramMessageId } });
   }
 
   return NextResponse.json({ booking: { id: booking.id } }, { status: 201 });

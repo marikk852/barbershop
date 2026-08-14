@@ -102,6 +102,11 @@ export function BookingFlow() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  // id только что созданной записи — нужен для deep link на бота
+  // (t.me/<bot>?start=<id>, см. экран успеха ниже): бот на /start
+  // связывает свой chat_id именно с ЭТОЙ записью (см. /api/telegram/
+  // webhook), чтобы слать в Telegram уведомления о её статусе.
+  const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -267,6 +272,8 @@ export function BookingFlow() {
         }
         throw new Error(t("genericError"));
       }
+      const created = (await r.json()) as { booking: { id: string } };
+      setCreatedBookingId(created.booking.id);
       setSubmitted(true);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : t("genericError"));
@@ -422,6 +429,23 @@ export function BookingFlow() {
           <div className={styles.summary}>
             <p className={styles.successTitle}>{t("successTitle")}</p>
             <p className={styles.hint}>{t("successText")}</p>
+            {/* Deep link t.me/<bot>?start=<id> — бот на /start связывает свой
+                chat_id именно с ЭТОЙ записью (см. /api/telegram/webhook),
+                чтобы слать уведомления о её статусе туда, а не только на
+                email. createdBookingId может отсутствовать только если JSON
+                ответа не распарсился — сама заявка при этом уже отправлена
+                успешно (submitted не выставился бы иначе), так что просто
+                не показываем ссылку, ничего не ломаем. */}
+            {createdBookingId && (
+              <a
+                className={styles.telegramLink}
+                href={`https://t.me/shawette_bot?start=${createdBookingId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t("telegramLink")}
+              </a>
+            )}
           </div>
         )}
       </div>
