@@ -12,27 +12,31 @@ function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number) {
 // с шагом SLOT_MINUTES (сетка времени в UI не должна прыгать от услуги к
 // услуге) — а вот ДЛИТЕЛЬНОСТЬ, которая проверяется на пересечение с
 // другими записями/блокировками и на "влезает ли до конца рабочего дня",
-// берётся из конкретной услуги (?serviceId=), если она передана. Без
-// serviceId (сценарий "сначала время, потом услуга" — сервис ещё не
-// выбран) — используется дефолтная SLOT_MINUTES, как раньше.
+// берётся из СУММЫ длительностей выбранных услуг (?serviceIds=a,b,c —
+// можно несколько сразу, одна запись = один визит на все услуги). Без
+// serviceIds (сценарий "сначала время, потом услуга" — ни одна ещё не
+// выбрана) — используется дефолтная SLOT_MINUTES, как раньше.
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const date = url.searchParams.get("date");
-  const serviceId = url.searchParams.get("serviceId");
+  const serviceIdsParam = url.searchParams.get("serviceIds");
   if (!date || !DATE_RE.test(date)) {
     return NextResponse.json({ error: "invalid date, expected YYYY-MM-DD" }, { status: 400 });
   }
 
   let durationMin = SLOT_MINUTES;
-  if (serviceId) {
-    const service = await prisma.service.findUnique({
-      where: { id: serviceId },
-      select: { durationMin: true, active: true },
+  const serviceIds = serviceIdsParam ? serviceIdsParam.split(",").filter(Boolean) : [];
+  if (serviceIds.length > 0) {
+    const services = await prisma.service.findMany({
+      where: { id: { in: serviceIds }, active: true },
+      select: { durationMin: true },
     });
-    // Неизвестный/неактивный serviceId — не 400: тихо откатываемся на
-    // дефолтную длительность, чтобы устаревшая ссылка на услугу не
-    // ломала весь календарь.
-    if (service?.active) durationMin = service.durationMin;
+    // Неизвестные/неактивные serviceId просто выпадают из выборки (не
+    // 400) — устаревшая ссылка на услугу не должна ломать весь
+    // календарь. Сумма пустой выборки (все id оказались невалидны) —
+    // 0, что откатывает на дефолтную длительность ниже.
+    const sum = services.reduce((acc, s) => acc + s.durationMin, 0);
+    if (sum > 0) durationMin = sum;
   }
 
   const weekday = localWeekday(date);

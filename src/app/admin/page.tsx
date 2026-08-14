@@ -17,7 +17,9 @@ interface Booking {
   endsAt: string;
   status: BookingStatus;
   notes: string | null;
-  service: { nameRu: string; nameRo: string; durationMin: number; priceCents: number };
+  // Снимок на момент бронирования (см. BookingService в схеме) — не
+  // текущие значения услуги, список может быть длиной 1 или больше.
+  services: { nameRu: string; nameRo: string; durationMin: number; priceCents: number }[];
 }
 
 const STATUS_LABEL: Record<BookingStatus, string> = {
@@ -112,7 +114,9 @@ export default function AdminPage() {
               </div>
               <div className={styles.cardRow}>{dateFmt.format(new Date(b.startsAt))}</div>
               <div className={styles.cardRow}>
-                {b.service.nameRu} · {b.service.durationMin} мин · {(b.service.priceCents / 100).toLocaleString("ru-RU")} MDL
+                {b.services.map((s) => s.nameRu).join(" + ")} ·{" "}
+                {b.services.reduce((sum, s) => sum + s.durationMin, 0)} мин ·{" "}
+                {(b.services.reduce((sum, s) => sum + s.priceCents, 0) / 100).toLocaleString("ru-RU")} MDL
               </div>
               <a className={styles.cardRow} href={`tel:${b.clientPhone.replace(/[^\d+]/g, "")}`}>
                 {b.clientPhone}

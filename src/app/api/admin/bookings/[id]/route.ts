@@ -28,7 +28,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     updated = await prisma.booking.update({
       where: { id },
       data: { status: status as AllowedStatus },
-      include: { service: { select: { nameRu: true, nameRo: true } } },
+      include: { services: { include: { service: { select: { nameRu: true, nameRo: true } } } } },
     });
   } catch {
     // Prisma кидает при "запись не найдена" (P2025) — единственный
@@ -46,12 +46,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   // возвращает {sent:false}), так что await здесь не может провалить
   // весь запрос — только притормозить ответ на время SMTP-раунтрипа.
   if (updated.clientEmail && EMAIL_ON_STATUS.has(status as AllowedStatus)) {
+    // Несколько услуг в одной записи — mailer принимает одну строку на
+    // язык (простой текстовый шаблон письма), склеиваем через " + "
+    // вместо того чтобы переделывать сам шаблон под список.
     await sendBookingStatusEmail(
       {
         clientEmail: updated.clientEmail,
         clientName: updated.clientName,
-        serviceNameRu: updated.service.nameRu,
-        serviceNameRo: updated.service.nameRo,
+        serviceNameRu: updated.services.map((bs) => bs.service.nameRu).join(" + "),
+        serviceNameRo: updated.services.map((bs) => bs.service.nameRo).join(" + "),
         startsAt: updated.startsAt,
       },
       status as "CONFIRMED" | "CANCELLED",

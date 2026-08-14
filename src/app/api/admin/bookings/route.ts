@@ -15,7 +15,11 @@ export async function GET(request: Request) {
   }
 
   const bookings = await prisma.booking.findMany({
-    include: { service: { select: { nameRu: true, nameRo: true, durationMin: true, priceCents: true } } },
+    include: {
+      services: {
+        include: { service: { select: { nameRu: true, nameRo: true } } },
+      },
+    },
     orderBy: { startsAt: "asc" },
   });
 
@@ -31,7 +35,16 @@ export async function GET(request: Request) {
       endsAt: b.endsAt.toISOString(),
       status: b.status,
       notes: b.notes,
-      service: b.service,
+      // durationMin/priceCents — снимок с момента бронирования (см.
+      // BookingService в схеме), не текущие значения услуги — так
+      // список записей в админке не "уедет" задним числом, если барбер
+      // потом поменяет цену/длительность в прайс-листе.
+      services: b.services.map((bs) => ({
+        nameRu: bs.service.nameRu,
+        nameRo: bs.service.nameRo,
+        durationMin: bs.durationMin,
+        priceCents: bs.priceCents,
+      })),
     })),
   });
 }

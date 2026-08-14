@@ -71,14 +71,21 @@ export function BookingFlow() {
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
-  // Порядок шагов: дата → время (сетка ещё без привязки к услуге) →
-  // услуга. Выбор услуги персистится через смену даты (незачем
-  // переспрашивать то, что от даты не зависит) — сбрасывается явно
-  // только вместе со всем остальным при закрытии попапа (размонтирование).
+  // Порядок шагов: дата → время (сетка ещё без привязки к услугам) →
+  // услуги (можно несколько сразу — одна запись = один визит на все).
+  // Выбор персистится через смену даты (незачем переспрашивать то, что
+  // от даты не зависит) — сбрасывается явно только вместе со всем
+  // остальным при закрытии попапа (размонтирование).
   const [services, setServices] = useState<Service[] | null>(null);
-  const [selectedService, setSelectedService] = useState<Service | null>(null);
-  // true, если ранее выбранное время не пережило проверку по
-  // длительности только что выбранной услуги (см. эффект слотов ниже).
+  const [selectedServices, setSelectedServices] = useState<Service[]>([]);
+  function toggleService(sv: Service) {
+    setSelectedServices((prev) => (prev.some((s) => s.id === sv.id) ? prev.filter((s) => s.id !== sv.id) : [...prev, sv]));
+  }
+  const totalDurationMin = useMemo(() => selectedServices.reduce((sum, s) => sum + s.durationMin, 0), [selectedServices]);
+  const totalPriceCents = useMemo(() => selectedServices.reduce((sum, s) => sum + s.priceCents, 0), [selectedServices]);
+  // true, если ранее выбранное время не пережило проверку по суммарной
+  // длительности только что изменившегося набора услуг (см. эффект
+  // слотов ниже).
   const [timeMismatch, setTimeMismatch] = useState(false);
 
   // Форма контакта — последний шаг, после даты+времени+услуги.
@@ -123,12 +130,13 @@ export function BookingFlow() {
     };
   }, [visibleMonth]);
 
-  // Дата ЕСТЬ в зависимостях у сброса времени, услуга — только у
+  // Дата ЕСТЬ в зависимостях у сброса времени, набор услуг — только у
   // перезапроса слотов (см. lastDateRef ниже: различаем "дата
-  // реально сменилась, время однозначно устарело" от "услуга
-  // сменилась, нужно ПРОВЕРИТЬ уже выбранное время, а не слепо
-  // сбрасывать" — иначе выбор услуги после времени всегда сбрасывал бы
-  // это время, даже если оно прекрасно влезает и по новой длительности).
+  // реально сменилась, время однозначно устарело" от "набор услуг
+  // изменился, нужно ПРОВЕРИТЬ уже выбранное время, а не слепо
+  // сбрасывать" — иначе любое изменение набора услуг после выбора
+  // времени всегда сбрасывало бы это время, даже если оно прекрасно
+  // влезает и по новой суммарной длительности).
   const lastDateRef = useRef<string | null>(null);
   useEffect(() => {
     if (!selectedDate) return;
@@ -144,8 +152,8 @@ export function BookingFlow() {
     setTimeMismatch(false);
     setSlotsLoading(true);
     setSlots(null);
-    const url = selectedService
-      ? `/api/booking/slots?date=${selectedDate}&serviceId=${selectedService.id}`
+    const url = selectedServices.length > 0
+      ? `/api/booking/slots?date=${selectedDate}&serviceIds=${selectedServices.map((s) => s.id).join(",")}`
       : `/api/booking/slots?date=${selectedDate}`;
     fetch(url)
       .then((r) => r.json())
@@ -153,9 +161,9 @@ export function BookingFlow() {
         if (cancelled) return;
         setSlots(data.slots);
         if (timeToVerify && !data.slots.includes(timeToVerify)) {
-          // Уже выбранное время не влезает в длительность только что
-          // выбранной (или заново проверяемой) услуги — сбрасываем ЕГО,
-          // а не услугу: пользователь явно выбирал услугу последней,
+          // Уже выбранное время не влезает в суммарную длительность
+          // только что изменившегося набора услуг — сбрасываем ЕГО, а
+          // не сам набор: пользователь явно менял услуги последним,
           // логичнее попросить перевыбрать время из уже верной сетки.
           setSelectedTime(null);
           setTimeMismatch(true);
@@ -168,7 +176,7 @@ export function BookingFlow() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate, selectedService]);
+  }, [selectedDate, selectedServices]);
 
   const grid = useMemo(() => buildMonthGrid(visibleMonth), [visibleMonth]);
   const weekdayLabels = useMemo(() => {
@@ -208,7 +216,7 @@ export function BookingFlow() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!selectedDate || !selectedTime || !selectedService) return;
+    if (!selectedDate || !selectedTime || selectedServices.length === 0) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -216,7 +224,7 @@ export function BookingFlow() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          serviceId: selectedService.id,
+          serviceIds: selectedServices.map((s) => s.id),
           date: selectedDate,
           time: selectedTime,
           clientName,
@@ -230,12 +238,12 @@ export function BookingFlow() {
         if (r.status === 409 && errBody.error === "slot no longer available") {
           // Мир успел измениться между тем, как открыли форму, и
           // отправкой — кто-то другой занял это же время. Сбрасываем
-          // выбор времени и сразу перезапрашиваем сетку (та же
-          // дата+услуга) — только что занятое время исчезнет из списка
+          // выбор времени и сразу перезапрашиваем сетку (та же дата и
+          // набор услуг) — только что занятое время исчезнет из списка
           // само, без дополнительного действия от пользователя.
           setSelectedTime(null);
           setTimeMismatch(true);
-          fetch(`/api/booking/slots?date=${selectedDate}&serviceId=${selectedService.id}`)
+          fetch(`/api/booking/slots?date=${selectedDate}&serviceIds=${selectedServices.map((s) => s.id).join(",")}`)
             .then((res) => res.json())
             .then((d: { slots: string[] }) => setSlots(d.slots));
           throw new Error(t("slotTaken"));
@@ -283,8 +291,10 @@ export function BookingFlow() {
             загрузилась (не обязательно строго ПОСЛЕ выбора времени: время
             остаётся кликабельным и здесь же, выше, весь этот период —
             тот же принцип "всё на виду, ничего не прячем за шагами", что
-            и у самого календаря). Пока не выбраны ОБА — времени и
-            услуги — summary ниже не показывается. */}
+            и у самого календаря). Услуг можно выбрать несколько сразу —
+            одна запись на весь набор, время проверяется по СУММЕ их
+            длительности (см. эффект слотов выше). Пока не выбраны ОБА —
+            время и хотя бы одна услуга — summary ниже не показывается. */}
         {slots && slots.length > 0 && (
           <div className={styles.serviceSection}>
             <h3 className={styles.stepTitle}>{t("pickService")}</h3>
@@ -298,30 +308,42 @@ export function BookingFlow() {
             )}
             {services && (
               <div className={styles.serviceGrid}>
-                {services.map((sv) => (
-                  <button
-                    key={sv.id}
-                    type="button"
-                    className={`${styles.serviceOption} ${selectedService?.id === sv.id ? styles.serviceOptionSelected : ""}`}
-                    aria-pressed={selectedService?.id === sv.id}
-                    onClick={() => setSelectedService(sv)}
-                  >
-                    <span className={styles.serviceOptionName}>{locale === "ro" ? sv.nameRo : sv.nameRu}</span>
-                    <span className={styles.serviceOptionMeta}>
-                      {sv.durationMin} {tPrice("duration")} · {(sv.priceCents / 100).toLocaleString(locale === "ro" ? "ro-RO" : "ru-RU")}{" "}
-                      {tPrice("currency")}
-                    </span>
-                  </button>
-                ))}
+                {services.map((sv) => {
+                  const isSelected = selectedServices.some((s) => s.id === sv.id);
+                  return (
+                    <button
+                      key={sv.id}
+                      type="button"
+                      className={`${styles.serviceOption} ${isSelected ? styles.serviceOptionSelected : ""}`}
+                      aria-pressed={isSelected}
+                      onClick={() => toggleService(sv)}
+                    >
+                      <span className={styles.serviceOptionMain}>
+                        <span className={styles.serviceOptionCheck} aria-hidden="true">
+                          <svg viewBox="0 0 12 12" fill="none">
+                            <path d="M2 6.2l2.6 2.6L10 3" stroke="#111319" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </span>
+                        <span className={styles.serviceOptionName}>{locale === "ro" ? sv.nameRo : sv.nameRu}</span>
+                      </span>
+                      <span className={styles.serviceOptionMeta}>
+                        {sv.durationMin} {tPrice("duration")} · {(sv.priceCents / 100).toLocaleString(locale === "ro" ? "ro-RO" : "ru-RU")}{" "}
+                        {tPrice("currency")}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
         )}
 
-        {selectedTime && selectedService && !submitted && (
+        {selectedTime && selectedServices.length > 0 && !submitted && (
           <div className={styles.summary}>
             <div className={styles.summaryText}>
-              {t("selectedLabel")} {selectedDateLabel}, {selectedTime} · {locale === "ro" ? selectedService.nameRo : selectedService.nameRu}
+              {t("selectedLabel")} {selectedDateLabel}, {selectedTime} ·{" "}
+              {selectedServices.map((s) => (locale === "ro" ? s.nameRo : s.nameRu)).join(" + ")} · {totalDurationMin}{" "}
+              {tPrice("duration")} · {(totalPriceCents / 100).toLocaleString(locale === "ro" ? "ro-RO" : "ru-RU")} {tPrice("currency")}
             </div>
             <form className={styles.contactForm} onSubmit={handleSubmit}>
               <input

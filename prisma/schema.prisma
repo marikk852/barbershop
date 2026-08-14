@@ -61,19 +61,19 @@ model Service {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  bookings Booking[]
+  bookingServices BookingService[]
 
   @@index([active, order])
 }
 
-/// Запись клиента. startsAt/endsAt хранятся в UTC явно (endsAt фиксируется
-/// в момент создания = startsAt + длительность услуги на тот момент —
-/// последующее изменение durationMin у Service не должно задним числом
-/// менять уже сделанные записи).
+/// Запись клиента. Одна запись — одно ВРЕМЯ (startsAt/endsAt), но может
+/// включать НЕСКОЛЬКО услуг сразу (см. BookingService) — endsAt считается
+/// как startsAt + СУММА durationMin всех выбранных услуг. startsAt/endsAt
+/// хранятся в UTC явно (endsAt фиксируется в момент создания — последующее
+/// изменение durationMin у Service не должно задним числом менять уже
+/// сделанные записи, см. тот же принцип на BookingService.durationMin).
 model Booking {
   id          String        @id @default(cuid())
-  serviceId   String
-  service     Service       @relation(fields: [serviceId], references: [id], onDelete: Restrict)
   clientName  String
   clientPhone String
   /// Необязательный — если клиент указал, шлём на него письмо при
@@ -91,8 +91,33 @@ model Booking {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  services BookingService[]
+
   @@index([startsAt])
   @@index([status])
+}
+
+/// Одна услуга внутри записи (Booking — BookingService — Service,
+/// многие-ко-многим с полезной нагрузкой). durationMin/priceCents —
+/// СНИМОК на момент создания записи (тот же принцип, что и у
+/// Booking.endsAt) — изменение цены/длительности услуги впоследствии не
+/// должно задним числом менять уже оформленные записи/чеки. onDelete:
+/// Restrict на service — как и раньше, нельзя удалить услугу, если на
+/// неё есть хоть одна историческая запись (снимок сохраняет цифры, но
+/// само название/язык услуги всё ещё читается через живую связь).
+model BookingService {
+  id          String  @id @default(cuid())
+  bookingId   String
+  booking     Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  serviceId   String
+  service     Service @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  durationMin Int
+  priceCents  Int
+
+  createdAt DateTime @default(now())
+
+  @@index([bookingId])
+  @@index([serviceId])
 }
 
 /// График работы по дням недели. weekday: 0=воскресенье..6=суббота (как JS Date#getDay).
