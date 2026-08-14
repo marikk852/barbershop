@@ -1331,10 +1331,18 @@ export function SiteScene() {
                 канвасе линзы поддерживается везде и распределяет пиксели
                 уже НАРИСОВАННОЙ туда (JS, drawImage) картинки сцены —
                 per-pixel displacement, честная реакция на то, что реально
-                под капсулой в данный момент, а не статичная текстура. */}
+                под капсулой в данный момент, а не статичная текстура.
+                baseFrequency/scale — первая попытка (.06/20) читалась как
+                "грязное стекло" (пользователь): низкая частота + большое
+                смещение давали крупные рваные кляксы вместо мелкого
+                равномерного рельефа. Выше частота (мельче ячейки) и
+                меньше scale (смещение меньше самой ячейки, не размазывает
+                контент ЗА её пределы) — сравнил на реальном скриншоте
+                сцены несколько сочетаний, это читается как связная мелкая
+                бугристая текстура, не кляксы. */}
             <filter id="lensFrost" x="-20%" y="-20%" width="140%" height="140%">
-              <feTurbulence type="turbulence" baseFrequency="0.06" numOctaves="3" seed="9" result="n" />
-              <feDisplacementMap in="SourceGraphic" in2="n" scale="20" xChannelSelector="R" yChannelSelector="G" />
+              <feTurbulence type="turbulence" baseFrequency="0.3" numOctaves="3" seed="9" result="n" />
+              <feDisplacementMap in="SourceGraphic" in2="n" scale="9" xChannelSelector="R" yChannelSelector="G" />
             </filter>
           </defs>
         </svg>
