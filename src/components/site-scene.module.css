@@ -293,13 +293,13 @@
      живое появление, а не пауза + рывок. */
   transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.heroNavDock .lens {
-  /* drawLenses() перестаёт обновлять канвас, пока меню в доке
-     (navCollapsedRef в site-scene.tsx) — без этого тут осталась бы
-     "замёрзшая" картинка сцены на момент коллапса. Прячем, а не просто
-     не рисуем — контент круглой иконки только фон+иконка. */
-  opacity: 0;
-}
+/* Раньше .heroNavDock .lens {opacity:0} — линза выключалась в доке
+   (drawLenses() не обновлял канвас, оставалась бы "замёрзшая" картинка
+   сцены на момент коллапса). По прямой просьбе пользователя
+   ("настоящее интерактивное стекло, реагирующее на задний фон") линза
+   теперь работает и в доке тоже — drawLenses() (site-scene.tsx) больше
+   не гейтится navCollapsedRef, сама меряет актуальное положение канваса
+   каждый кадр через getBoundingClientRect(), никакого "замерзания". */
 .grainOverlay {
   /* Зерно/шум поверх стекла — работает ОДИНАКОВО в обоих состояниях
      меню, поэтому отдельный элемент, а не слой в background капсулы:
@@ -308,17 +308,22 @@
      ним и невидимо. z-index:1 — выше .lens, ниже текста/иконки
      (.num/.lbl/.navIcon, z-index:3) и глянцевого блика ::after (тоже
      выше .lens по порядку отрисовки). Тот же SVG feTurbulence-рецепт,
-     что и у .grain (заставка интро) — для визуальной согласованности,
-     не новый узор с нуля. Opacity запечён В САМ SVG (rect opacity=.35),
-     mix-blend-mode:overlay смешивает зерно с тем, что уже отрисовано
-     под ним (сцена сквозь линзу или плоский tint дока), а не создаёт
-     сплошной серый круг поверх. */
+     что и у .grain (заставка интро), но baseFrequency ниже (.18 вместо
+     .8) и numOctaves меньше (2 вместо 4) — крупные разборчивые пятна
+     вместо мелкого ровного "телевизионного" шума (по прямой просьбе
+     пользователя, "сделай зернистость крупнее"). Opacity запечён В САМ
+     SVG (rect opacity=.4 — чуть выше, чем было: у крупных пятен ниже
+     субъективная плотность на глаз при той же альфе, чем у мелких, где
+     соседние пиксели усредняются восприятием), mix-blend-mode:overlay
+     смешивает зерно с тем, что уже отрисовано под ним (сцена сквозь
+     линзу или плоский tint дока), а не создаёт сплошной серый круг
+     поверх. */
   position: absolute;
   inset: 0;
   z-index: 1;
   border-radius: inherit;
   pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='sn'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23sn)' opacity='.35'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='sn'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.18' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23sn)' opacity='.4'/%3E%3C/svg%3E");
   mix-blend-mode: overlay;
 }
 .heroNav a::after {

@@ -1223,6 +1223,19 @@ export function SiteScene() {
             colorSampleAcc = 0;
             sampleLabelColors();
           }
+        }
+        // Линза (drawLenses) — раньше гейтилась ТЕМ ЖЕ условием, что и
+        // sampleLabelColors() выше (!navCollapsedRef.current, т.е. только
+        // вертикаль) — по прямой просьбе пользователя ("настоящее
+        // интерактивное стекло, реагирующее на задний фон") включаем её и
+        // в доке. sampleLabelColors() остаётся вертикаль-only осознанно —
+        // считает цвет ПОБУКВЕННО для num/lbl текста, которого в доке нет
+        // (там просто белая SVG-иконка, .navIcon {color:#fff} фиксирован).
+        // getBoundingClientRect() внутри drawLenses() каждый раз меряет
+        // АКТУАЛЬНОЕ положение канваса линзы — не зависит от того, докнуто
+        // меню или нет, работает одинаково в обоих раскладках без доп.
+        // веток.
+        if ((heroMenu > 0 || navCollapsedRef.current) && !document.hidden) {
           // prefers-reduced-motion: сцена и так не вращается (autoSpin/
           // float гейтятся выше), поэтому линзу достаточно нарисовать один
           // раз статично — она и не должна "устаревать". Иначе — каждый
@@ -1230,15 +1243,13 @@ export function SiteScene() {
           // при заметном bulge даже 1/6с давал видимый "рывок" по сравнению
           // с плавным вращением рядом). Page Visibility API: на скрытой
           // вкладке вообще не трогаем канвасы линз (document.hidden).
-          if (!document.hidden) {
-            if (reduced) {
-              if (!lensDrawnStatic) {
-                lensDrawnStatic = true;
-                drawLenses();
-              }
-            } else {
+          if (reduced) {
+            if (!lensDrawnStatic) {
+              lensDrawnStatic = true;
               drawLenses();
             }
+          } else {
+            drawLenses();
           }
         }
 
