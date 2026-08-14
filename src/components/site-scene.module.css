@@ -204,19 +204,14 @@
      принцип "многослойного стекла", тот же, что и у .heroNav a::after
      (глянцевый блик сверху), который здесь тоже продолжает работать
      одновременно, просто как отдельный слой поверх.
-     Третий (верхний) слой — зерно/шум, тот же SVG feTurbulence-рецепт,
-     что и у .grain (заставка интро, см. ниже) — для визуальной
-     согласованности с остальным сайтом, не новый узор с нуля. Opacity
-     запечён В САМ SVG (rect opacity='.35'), не в CSS — background-layer
-     не умеет иметь собственный opacity/blend отдельно от остальных
-     свойств элемента, только background-blend-mode ниже, который мешает
-     этот слой с тем, что под ним (а не с контентом позади капсулы —
-     это не backdrop-filter, а обычное наложение слоёв фона). */
+     Зерно — ОТДЕЛЬНЫМ элементом .grainOverlay (см. JSX и CSS ниже), не
+     слоем в этом background: было так раньше, но в вертикальном меню
+     .lens (canvas с живой сценой) рисуется ПОВЕРХ background капсулы и
+     просто перекрывал бы зерно-слой — единый .grainOverlay работает
+     одинаково в обоих состояниях. */
   background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='sn'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23sn)' opacity='.35'/%3E%3C/svg%3E"),
     radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.03) 55%),
     rgba(255, 255, 255, 0.03);
-  background-blend-mode: overlay, normal, normal;
 }
 .heroNavDock .navItemFeatured a {
   /* Размер НЕ переопределяем — наследует 52px от .heroNavDock a выше,
@@ -224,13 +219,10 @@
   border-color: rgba(255, 212, 0, 0.6);
   /* Тот же приём "жидкого стекла", что и у .heroNavDock a выше — тёплый
      блик вместо белого, чтобы капсула осталась узнаваемо жёлтой, а не
-     просто белое стекло с цветной рамкой. Плюс то же зерно (см. пояснение
-     у .heroNavDock a выше). */
+     просто белое стекло с цветной рамкой. */
   background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='sn'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23sn)' opacity='.35'/%3E%3C/svg%3E"),
     radial-gradient(circle at 32% 26%, rgba(255, 244, 200, 0.35), rgba(255, 212, 0, 0.12) 55%),
     rgba(255, 212, 0, 0.22);
-  background-blend-mode: overlay, normal, normal;
 }
 /* "Запись" — единственный пункт с собственным цветом стекла (жёлтое,
    #FFD400 — тот же акцент, что и у шевронов-подсказки жеста), во ОБОИХ
@@ -307,6 +299,27 @@
      "замёрзшая" картинка сцены на момент коллапса. Прячем, а не просто
      не рисуем — контент круглой иконки только фон+иконка. */
   opacity: 0;
+}
+.grainOverlay {
+  /* Зерно/шум поверх стекла — работает ОДИНАКОВО в обоих состояниях
+     меню, поэтому отдельный элемент, а не слой в background капсулы:
+     в вертикали .lens (canvas с живой сценой, z-index:-1) рисуется
+     ПОВЕРХ background самой капсулы — зерно в background было бы под
+     ним и невидимо. z-index:1 — выше .lens, ниже текста/иконки
+     (.num/.lbl/.navIcon, z-index:3) и глянцевого блика ::after (тоже
+     выше .lens по порядку отрисовки). Тот же SVG feTurbulence-рецепт,
+     что и у .grain (заставка интро) — для визуальной согласованности,
+     не новый узор с нуля. Opacity запечён В САМ SVG (rect opacity=.35),
+     mix-blend-mode:overlay смешивает зерно с тем, что уже отрисовано
+     под ним (сцена сквозь линзу или плоский tint дока), а не создаёт
+     сплошной серый круг поверх. */
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='sn'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23sn)' opacity='.35'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
 }
 .heroNav a::after {
   /* глянцевый блик сверху — то, что читается как стекло без всякого blur */

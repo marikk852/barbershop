@@ -1371,6 +1371,14 @@ export function SiteScene() {
                   className={styles.lens}
                   aria-hidden="true"
                 />
+                {/* Зерно поверх стекла — в вертикали ложится НАД .lens (canvas
+                    с живой сценой, z-index:-1), в доке НАД плоским tint'ом
+                    капсулы — единый слой для обоих состояний, а не два
+                    разных механизма (в доке зерно раньше сидело прямо в
+                    background капсулы фоновым слоем — это ломало вертикаль,
+                    т.к. .lens рисуется ПОВЕРХ background и просто перекрывал
+                    его). См. .grainOverlay в CSS. */}
+                <span className={styles.grainOverlay} aria-hidden="true" />
                 <span className={styles.num}>
                   {[...item.num].map((ch, ci) => (
                     <span key={ci} className={styles.numChar}>{ch}</span>
