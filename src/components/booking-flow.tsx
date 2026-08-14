@@ -69,6 +69,12 @@ export function BookingFlow() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [slots, setSlots] = useState<string[] | null>(null);
   const [slotsLoading, setSlotsLoading] = useState(false);
+  // true, как только сетка времени хоть раз пришла для ТЕКУЩЕЙ даты — в
+  // отличие от slots (который перезатирается при каждом перезапросе),
+  // не сбрасывается обратно в false при смене набора услуг: держит шаг
+  // "услуга" (см. serviceSection ниже) на экране постоянно, вместо
+  // мерцания "пропал-появился" при каждом клике по чекбоксу услуги.
+  const [slotsEverLoaded, setSlotsEverLoaded] = useState(false);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
   // Порядок шагов: дата → время (сетка ещё без привязки к услугам) →
@@ -144,14 +150,24 @@ export function BookingFlow() {
     const dateChanged = lastDateRef.current !== selectedDate;
     lastDateRef.current = selectedDate;
     const timeToVerify = dateChanged ? null : selectedTime;
-    if (dateChanged) setSelectedTime(null);
+    // slots/slotsEverLoaded обнуляем ТОЛЬКО при реальной смене даты —
+    // старые данные для новой даты откровенно неверны, показывать их
+    // (пусть и притушенными) нельзя. При смене НАБОРА УСЛУГ (dateChanged
+    // = false) старые slots намеренно НЕ трогаем здесь — эффект ниже
+    // просто подменит их на актуальные, когда придёт ответ; на экране
+    // всё это время остаётся прежняя сетка (только слегка притушенная
+    // через slotsLoading, см. JSX), без пропадания/появления секции.
+    if (dateChanged) {
+      setSelectedTime(null);
+      setSlots(null);
+      setSlotsEverLoaded(false);
+    }
     // См. комментарий в эффекте месяца выше — тот же осознанный случай
     // (индикаторы состояния запроса, которому нет смысла ждать лишний
     // рендер).
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTimeMismatch(false);
     setSlotsLoading(true);
-    setSlots(null);
     const url = selectedServices.length > 0
       ? `/api/booking/slots?date=${selectedDate}&serviceIds=${selectedServices.map((s) => s.id).join(",")}`
       : `/api/booking/slots?date=${selectedDate}`;
@@ -160,6 +176,7 @@ export function BookingFlow() {
       .then((data: { slots: string[] }) => {
         if (cancelled) return;
         setSlots(data.slots);
+        setSlotsEverLoaded(true);
         if (timeToVerify && !data.slots.includes(timeToVerify)) {
           // Уже выбранное время не влезает в суммарную длительность
           // только что изменившегося набора услуг — сбрасываем ЕГО, а
@@ -266,10 +283,16 @@ export function BookingFlow() {
         </button>
         <h3 className={styles.stepTitle}>{selectedDateLabel}</h3>
 
-        {slotsLoading && <p className={styles.hint}>{t("loading")}</p>}
-        {!slotsLoading && slots && slots.length === 0 && <p className={styles.hint}>{t("noSlots")}</p>}
-        {!slotsLoading && slots && slots.length > 0 && (
-          <div className={styles.slotGrid}>
+        {/* Только для самой первой загрузки этой даты (slots ещё null —
+            показать нечего) — текст "Загрузка…". При последующих
+            перезапросах (сменился набор услуг) slots уже не null, старая
+            сетка остаётся на экране притушенной (.slotGridLoading), а не
+            подменяется этим текстом — иначе секция дёргалась бы туда-сюда
+            при каждом клике по чекбоксу услуги. */}
+        {slotsLoading && slots === null && <p className={styles.hint}>{t("loading")}</p>}
+        {slots && slots.length === 0 && <p className={styles.hint}>{t("noSlots")}</p>}
+        {slots && slots.length > 0 && (
+          <div className={`${styles.slotGrid} ${slotsLoading ? styles.slotGridLoading : ""}`}>
             {slots.map((s) => (
               <button
                 key={s}
@@ -291,11 +314,19 @@ export function BookingFlow() {
             загрузилась (не обязательно строго ПОСЛЕ выбора времени: время
             остаётся кликабельным и здесь же, выше, весь этот период —
             тот же принцип "всё на виду, ничего не прячем за шагами", что
-            и у самого календаря). Услуг можно выбрать несколько сразу —
-            одна запись на весь набор, время проверяется по СУММЕ их
+            и у самого календаря). Гейт — slotsEverLoaded, НЕ "slots.length
+            > 0" (было раньше): тот пересчитывается при каждом изменении
+            набора услуг и на миг становится false/пустым на время
+            перезапроса — секция мигала бы "пропал-появился" при каждом
+            клике по чекбоксу. Заодно чинит смежную ловушку: если добавление
+            услуги обнуляет доступные слоты (суммарная длительность больше
+            не влезает никуда), пользователь всё ещё видит список услуг и
+            может СНЯТЬ услугу обратно, а не упирается в "нет времени" без
+            способа исправить. Услуг можно выбрать несколько сразу — одна
+            запись на весь набор, время проверяется по СУММЕ их
             длительности (см. эффект слотов выше). Пока не выбраны ОБА —
             время и хотя бы одна услуга — summary ниже не показывается. */}
-        {slots && slots.length > 0 && (
+        {slotsEverLoaded && (
           <div className={styles.serviceSection}>
             <h3 className={styles.stepTitle}>{t("pickService")}</h3>
             {timeMismatch && <p className={styles.mismatchNotice}>{t("timeMismatch")}</p>}
