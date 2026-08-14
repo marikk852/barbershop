@@ -1323,6 +1323,19 @@ export function SiteScene() {
             <filter id="sSoften" filterUnits="userSpaceOnUse" x="156" y="253" width="954" height="734">
               <feGaussianBlur stdDeviation="7" />
             </filter>
+            {/* Настоящая рефракция капсул меню (.lens, см. CSS) — не
+                backdrop-filter: url() (референс "морозного стекла" от
+                пользователя): проверено, ни один браузер не применяет
+                backdrop-filter со ссылкой на SVG-фильтр, только встроенные
+                функции (blur/brightness/...). Обычный filter:url() на самом
+                канвасе линзы поддерживается везде и распределяет пиксели
+                уже НАРИСОВАННОЙ туда (JS, drawImage) картинки сцены —
+                per-pixel displacement, честная реакция на то, что реально
+                под капсулой в данный момент, а не статичная текстура. */}
+            <filter id="lensFrost" x="-20%" y="-20%" width="140%" height="140%">
+              <feTurbulence type="turbulence" baseFrequency="0.06" numOctaves="3" seed="9" result="n" />
+              <feDisplacementMap in="SourceGraphic" in2="n" scale="20" xChannelSelector="R" yChannelSelector="G" />
+            </filter>
           </defs>
         </svg>
 
