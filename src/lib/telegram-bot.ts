@@ -117,34 +117,23 @@ export async function notifyAdminNewBooking(data: BookingNotifyData): Promise<nu
 }
 
 // После решения (подтвердить/отклонить, из кнопки ИЛИ из админки —
-// оба пути в итоге сюда) — редактируем то же самое сообщение в "Заявках":
-// дописываем итоговый статус, кнопки убираем (reply_markup: undefined
-// в editMessageReplyMarkup не подходит, editMessageText сама заменяет
-// и текст, и клавиатуру разом, если reply_markup не передан — она
-// просто пропадает). Плюс отдельным сообщением — запись в "Историю"
-// (см. logBookingHistory), это ДВА разных действия, вызываются вместе
-// из applyBookingStatus.
-export async function updateAdminBookingMessage(
-  messageId: number,
-  data: BookingNotifyData,
-  status: "CONFIRMED" | "CANCELLED",
-): Promise<void> {
+// оба пути в итоге сюда) — карточка в "Заявках" полностью УДАЛЯЕТСЯ
+// (по прямой просьбе пользователя: тема "Заявки" — только для того, что
+// реально ждёт решения, решённое там не нужно вообще, даже с финальным
+// статусом). Раньше здесь было editMessageText (дописать статус, оставить
+// на месте) — заменено на deleteMessage. Единственный след решения —
+// отдельное сообщение в "Записях" (см. logBookingHistory), которое
+// вызывается ВМЕСТЕ с этой функцией из applyBookingStatus.
+export async function deleteAdminBookingMessage(messageId: number): Promise<void> {
   if (!ADMIN_GROUP_CHAT_ID) return;
-  const statusLine = status === "CONFIRMED" ? "✅ Подтверждена" : "❌ Отклонена";
-  await callApi("editMessageText", {
-    chat_id: ADMIN_GROUP_CHAT_ID,
-    message_id: messageId,
-    text: bookingCard(data, statusLine),
-    parse_mode: "HTML",
-  });
+  await callApi("deleteMessage", { chat_id: ADMIN_GROUP_CHAT_ID, message_id: messageId });
 }
 
-// Новое сообщение в теме "История" (не редактирование — растущий лог
-// всех решений, "Заявки" тем временем остаются местом только для
-// АКТУАЛЬНО решённых на глазах записей — старая карточка там просто
-// дозаписывается финальным статусом на месте, см. updateAdminBookingMessage
-// выше, не переезжает и не дублируется сюда как отдельный шаг). Без
-// message_thread_id сообщение улетело бы в General ("Заявки") —
+// Новое сообщение в теме "Записи" — единственный оставшийся след решения
+// после того, как исходная карточка в "Заявках" удалена (см.
+// deleteAdminBookingMessage выше): "Заявки" — только то, что реально ждёт
+// действия, всё решённое переезжает сюда, а не дублируется на два места.
+// Без message_thread_id сообщение улетело бы в General ("Заявки") —
 // HISTORY_TOPIC_ID обязателен именно здесь.
 export async function logBookingHistory(data: BookingNotifyData, status: "CONFIRMED" | "CANCELLED"): Promise<void> {
   if (!ADMIN_GROUP_CHAT_ID || !HISTORY_TOPIC_ID) return;

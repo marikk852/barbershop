@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { sendBookingStatusEmail } from "@/lib/mailer";
 import {
+  deleteAdminBookingMessage,
   logBookingHistory,
   notifyClientStatusChange,
-  updateAdminBookingMessage,
   type BookingNotifyData,
 } from "@/lib/telegram-bot";
 
@@ -16,8 +16,8 @@ export type ApplyStatusResult = { ok: true; id: string; status: string } | { ok:
 // PATCH /api/admin/bookings/[id] (ручное подтверждение из админки),
 // теперь сюда же приходит и нажатие кнопки под Telegram-уведомлением
 // (см. /api/telegram/webhook): один и тот же путь валидации + рассылки
-// уведомлений (email клиенту, Telegram клиенту, редактирование
-// сообщения барберу), не два дублирующих друг друга.
+// уведомлений (email клиенту, Telegram клиенту, удаление карточки в
+// "Заявках" + запись решения в "Записи"), не два дублирующих друг друга.
 export async function applyBookingStatus(id: string, status: AllowedBookingStatus): Promise<ApplyStatusResult> {
   let updated;
   try {
@@ -38,8 +38,7 @@ export async function applyBookingStatus(id: string, status: AllowedBookingStatu
   // клиенту и так уже всё известно, уведомлять незачем. Заодно (не
   // через Set.has(), тот не сужает тип для TS) дальше status
   // гарантированно "CONFIRMED" | "CANCELLED", ровно то, что ждут
-  // sendBookingStatusEmail/notifyClientStatusChange/
-  // updateAdminBookingMessage.
+  // sendBookingStatusEmail/notifyClientStatusChange/logBookingHistory.
   if (status !== "CONFIRMED" && status !== "CANCELLED") {
     return { ok: true, id: updated.id, status: updated.status };
   }
@@ -85,13 +84,13 @@ export async function applyBookingStatus(id: string, status: AllowedBookingStatu
     totalDurationMin,
     totalPriceCents,
   };
-  // Два РАЗНЫХ сообщения в группе: редактируем исходную карточку в
-  // "Заявках" (если она вообще была отправлена — telegramMessageId
-  // мог не сохраниться при сетевом сбое на создании) И отдельно
-  // логируем решение в "Историю" — та растёт, не зависит от того,
-  // нашлась ли исходная карточка для редактирования.
+  // "Заявки" — только то, что ждёт решения: удаляем исходную карточку
+  // (если она вообще была отправлена — telegramMessageId мог не
+  // сохраниться при сетевом сбое на создании), а сам факт решения
+  // переезжает отдельным сообщением в "Записи" (растущий лог, не
+  // зависит от того, нашлась ли исходная карточка для удаления).
   if (updated.telegramMessageId) {
-    await updateAdminBookingMessage(updated.telegramMessageId, notifyData, status);
+    await deleteAdminBookingMessage(updated.telegramMessageId);
   }
   await logBookingHistory(notifyData, status);
 
