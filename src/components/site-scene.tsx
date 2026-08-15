@@ -646,14 +646,27 @@ export function SiteScene() {
 
     // ---------- 3D-сцена (отложена на кадр — не блокировать отрисовку заставки) ----------
     function setup3D(): (() => void) | null {
+      // "coarse" pointer — реальный признак тачскрина (не UA-нюхание),
+      // тот же приём, что и у prefersReducedMotion() выше (matchMedia).
+      // Мобильные GPU заметно слабее десктопных для ИМЕННО этой сцены
+      // (PBR-материалы: clearcoat/anisotropy/env-отражения + ACES tone
+      // mapping + MSAA) — жалоба на лаги на Samsung Galaxy S23. CPU тут
+      // не бутылочное горлышко (проверено: 60fps держится даже под 6x
+      // CPU-throttling в DevTools, замер headless-Chromium с реальным
+      // GPU через ANGLE/Metal) — узкое место именно в GPU/fill-rate.
+      // MSAA (antialias) — одна из самых дорогих вещей для мобильного
+      // GPU при таком количестве треугольников/материалов, отключаем на
+      // тачскринах; DPR тоже снижаем (2 → 1.5) — меньше пикселей на
+      // кадр, на маленьком экране разница в резкости почти не читается.
+      const isTouch = matchMedia("(pointer: coarse)").matches;
       let renderer: THREE.WebGLRenderer;
       try {
-        renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
+        renderer = new THREE.WebGLRenderer({ canvas, antialias: !isTouch, alpha: true, powerPreference: "high-performance" });
       } catch {
         if (fallbackRef.current) fallbackRef.current.style.display = "grid";
         return null;
       }
-      const DPR = Math.min(window.devicePixelRatio || 1, 2);
+      const DPR = Math.min(window.devicePixelRatio || 1, isTouch ? 1.5 : 2);
       renderer.setPixelRatio(DPR);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -976,7 +989,11 @@ export function SiteScene() {
 
       function drawLenses() {
         if (!lensCanvases.length) return;
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        // Тот же isTouch, что и у главного рендерера выше — до 4 таких
+        // канвасов перерисовываются (drawImage + маска стирания + blur)
+        // КАЖДЫЙ кадр, тот же fill-rate-бюджет мобильного GPU, что и у
+        // самой сцены.
+        const dpr = Math.min(window.devicePixelRatio || 1, isTouch ? 1.5 : 2);
         lensCanvases.forEach((lens, i) => {
           const ctx = lensCtxs[i];
           if (!ctx) return;
