@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { sendBookingStatusEmail } from "@/lib/mailer";
-import { notifyClientStatusChange, updateAdminBookingMessage, type BookingNotifyData } from "@/lib/telegram-bot";
+import {
+  logBookingHistory,
+  notifyClientStatusChange,
+  updateAdminBookingMessage,
+  type BookingNotifyData,
+} from "@/lib/telegram-bot";
 
 export const ALLOWED_BOOKING_STATUSES = ["CONFIRMED", "CANCELLED", "DONE"] as const;
 export type AllowedBookingStatus = (typeof ALLOWED_BOOKING_STATUSES)[number];
@@ -71,18 +76,24 @@ export async function applyBookingStatus(id: string, status: AllowedBookingStatu
     );
   }
 
+  const notifyData: BookingNotifyData = {
+    id: updated.id,
+    clientName: updated.clientName,
+    clientPhone: updated.clientPhone,
+    startsAt: updated.startsAt,
+    servicesLabel: servicesLabelRu,
+    totalDurationMin,
+    totalPriceCents,
+  };
+  // Два РАЗНЫХ сообщения в группе: редактируем исходную карточку в
+  // "Заявках" (если она вообще была отправлена — telegramMessageId
+  // мог не сохраниться при сетевом сбое на создании) И отдельно
+  // логируем решение в "Историю" — та растёт, не зависит от того,
+  // нашлась ли исходная карточка для редактирования.
   if (updated.telegramMessageId) {
-    const notifyData: BookingNotifyData = {
-      id: updated.id,
-      clientName: updated.clientName,
-      clientPhone: updated.clientPhone,
-      startsAt: updated.startsAt,
-      servicesLabel: servicesLabelRu,
-      totalDurationMin,
-      totalPriceCents,
-    };
     await updateAdminBookingMessage(updated.telegramMessageId, notifyData, status);
   }
+  await logBookingHistory(notifyData, status);
 
   return { ok: true, id: updated.id, status: updated.status };
 }

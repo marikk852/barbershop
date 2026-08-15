@@ -1,7 +1,17 @@
 import { SHOP_TIMEZONE } from "@/lib/shop-time";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID;
+// Группа "WKondrea_barber" (форум-режим, темы включены) — уведомления
+// барберу переехали из личного чата с ботом сюда, по прямой просьбе
+// пользователя. Тема "Заявки" — это General, у нашего API-запроса для
+// неё НЕТ отдельного message_thread_id (сообщения без этого поля летят
+// в General сами по себе — так уже проверено вживую через getUpdates).
+// Тема "История" — обычная (не General), у неё есть свой id, см.
+// HISTORY_TOPIC_ID ниже. ADMIN_TELEGRAM_ID остаётся отдельно (используется
+// в /api/telegram/webhook — кто именно из участников группы имеет право
+// нажимать кнопки подтверждения, а не куда слать сообщения).
+const ADMIN_GROUP_CHAT_ID = process.env.TELEGRAM_ADMIN_GROUP_CHAT_ID;
+const HISTORY_TOPIC_ID = process.env.TELEGRAM_HISTORY_TOPIC_ID;
 
 const API_BASE = "https://api.telegram.org";
 
@@ -80,15 +90,15 @@ function bookingCard(data: BookingNotifyData, statusLine?: string): string {
   return lines.join("\n");
 }
 
-// Отправляется барберу на КАЖДУЮ новую заявку (PENDING) — сразу с
-// кнопками, чтобы подтвердить/отклонить можно было прямо из уведомления,
-// не открывая админку. message_id возвращается вызывающей стороне —
-// сохраняется в Booking.telegramMessageId, чтобы после решения
-// ОТРЕДАКТИРОВАТЬ то же сообщение (см. updateAdminBookingMessage), а не
-// слать новое.
+// Отправляется в тему "Заявки" (General группы) на КАЖДУЮ новую заявку
+// (PENDING) — сразу с кнопками, чтобы подтвердить/отклонить можно было
+// прямо из уведомления, не открывая админку. message_id возвращается
+// вызывающей стороне — сохраняется в Booking.telegramMessageId, чтобы
+// после решения ОТРЕДАКТИРОВАТЬ то же сообщение (см.
+// updateAdminBookingMessage), а не слать новое.
 export async function notifyAdminNewBooking(data: BookingNotifyData): Promise<number | null> {
-  if (!ADMIN_TELEGRAM_ID) {
-    console.warn("[telegram-bot] ADMIN_TELEGRAM_ID не задан — уведомление барберу пропущено");
+  if (!ADMIN_GROUP_CHAT_ID) {
+    console.warn("[telegram-bot] TELEGRAM_ADMIN_GROUP_CHAT_ID не задан — уведомление барберу пропущено");
     return null;
   }
   const keyboard: InlineButton[][] = [
@@ -98,7 +108,7 @@ export async function notifyAdminNewBooking(data: BookingNotifyData): Promise<nu
     ],
   ];
   const result = await callApi<{ message_id: number }>("sendMessage", {
-    chat_id: ADMIN_TELEGRAM_ID,
+    chat_id: ADMIN_GROUP_CHAT_ID,
     text: bookingCard(data),
     parse_mode: "HTML",
     reply_markup: { inline_keyboard: keyboard },
@@ -107,21 +117,41 @@ export async function notifyAdminNewBooking(data: BookingNotifyData): Promise<nu
 }
 
 // После решения (подтвердить/отклонить, из кнопки ИЛИ из админки —
-// оба пути в итоге сюда) — редактируем то же самое сообщение барберу:
+// оба пути в итоге сюда) — редактируем то же самое сообщение в "Заявках":
 // дописываем итоговый статус, кнопки убираем (reply_markup: undefined
 // в editMessageReplyMarkup не подходит, editMessageText сама заменяет
 // и текст, и клавиатуру разом, если reply_markup не передан — она
-// просто пропадает).
+// просто пропадает). Плюс отдельным сообщением — запись в "Историю"
+// (см. logBookingHistory), это ДВА разных действия, вызываются вместе
+// из applyBookingStatus.
 export async function updateAdminBookingMessage(
   messageId: number,
   data: BookingNotifyData,
   status: "CONFIRMED" | "CANCELLED",
 ): Promise<void> {
-  if (!ADMIN_TELEGRAM_ID) return;
+  if (!ADMIN_GROUP_CHAT_ID) return;
   const statusLine = status === "CONFIRMED" ? "✅ Подтверждена" : "❌ Отклонена";
   await callApi("editMessageText", {
-    chat_id: ADMIN_TELEGRAM_ID,
+    chat_id: ADMIN_GROUP_CHAT_ID,
     message_id: messageId,
+    text: bookingCard(data, statusLine),
+    parse_mode: "HTML",
+  });
+}
+
+// Новое сообщение в теме "История" (не редактирование — растущий лог
+// всех решений, "Заявки" тем временем остаются местом только для
+// АКТУАЛЬНО решённых на глазах записей — старая карточка там просто
+// дозаписывается финальным статусом на месте, см. updateAdminBookingMessage
+// выше, не переезжает и не дублируется сюда как отдельный шаг). Без
+// message_thread_id сообщение улетело бы в General ("Заявки") —
+// HISTORY_TOPIC_ID обязателен именно здесь.
+export async function logBookingHistory(data: BookingNotifyData, status: "CONFIRMED" | "CANCELLED"): Promise<void> {
+  if (!ADMIN_GROUP_CHAT_ID || !HISTORY_TOPIC_ID) return;
+  const statusLine = status === "CONFIRMED" ? "✅ Подтверждена" : "❌ Отклонена";
+  await callApi("sendMessage", {
+    chat_id: ADMIN_GROUP_CHAT_ID,
+    message_thread_id: Number(HISTORY_TOPIC_ID),
     text: bookingCard(data, statusLine),
     parse_mode: "HTML",
   });
