@@ -3,8 +3,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import * as THREE from "three";
-import { useTranslations } from "next-intl";
-import { Link } from "@/i18n/navigation";
+import { useLocale, useTranslations } from "next-intl";
+import { Link, usePathname, getPathname } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
 import { BookingFlow } from "@/components/booking-flow";
 import { BioFlow } from "@/components/bio-flow";
@@ -94,6 +94,26 @@ export function SiteScene() {
   const tBio = useTranslations("Bio");
   const tPrice = useTranslations("Price");
   const tPortfolio = useTranslations("Portfolio");
+
+  // Переключатель языка (RU/RO) — отдельный элемент рядом с вертикальным
+  // меню (не 5-й navItem внутри самого меню — то жёстко завязано на
+  // multi-element FLIP ровно под 4 пункта, см. комментарии у navWrapRefs
+  // ниже; переключатель к тому же не открывает попап, а меняет URL,
+  // логика принципиально другая). currentLocale — язык сайта прямо
+  // сейчас; pathname/getPathname — из next-intl (@/i18n/navigation).
+  // ВАЖНО: смена локали делается ПОЛНОЙ перезагрузкой страницы
+  // (window.location), а не next-intl useRouter().replace() (клиентский
+  // SPA-переход) — проверено вживую: SiteScene никогда раньше не
+  // размонтировался через клиентский transition (единственный способ
+  // сменить локаль до этого переключателя — прямая ссылка/новая загрузка
+  // страницы), а этот компонент насквозь императивный (Three.js-рендерер,
+  // ручные DOM-манипуляции вроде `splash?.remove()`, таймеры) — при
+  // попытке смонтировать/размонтировать его через SPA-навигацию React
+  // ловил реальный краш (`NotFoundError: Failed to execute 'removeChild'
+  // on 'Node'`). Полная перезагрузка страницы обходит это полностью —
+  // именно так уже давно грузится любая другая локаль/страница сайта.
+  const currentLocale = useLocale();
+  const pathname = usePathname();
 
   // Решение "показывать ли героическое интро" принимается один раз,
   // синхронно, ДО первой отрисовки (useLayoutEffect) — чтобы не было
@@ -1426,6 +1446,34 @@ export function SiteScene() {
           );
         })}
       </nav>
+
+      {/* Во время интро-заставки скрыт САМ СОБОЙ: .splash — непрозрачный
+          fullscreen (z-index:40) поверх .langSwitch (z-index:8), а
+          heroFirstVisit НЕ годится как флаг "заставка ещё идёт" — он
+          остаётся true всю жизнь компонента на главной (означает "это
+          домашний путь", не "интро сейчас видимо"); сама заставка
+          удаляется из DOM императивно (`splash?.remove()`), без React-
+          состояния. Единственное, что гасим явно — попап (панель может
+          перекрывать этот угол на узких экранах, см. .bookingPanel в
+          CSS, центрированная, до ~90vw на мобильном). */}
+      {!(activeIndex !== null && popupPhase !== "closed") && (
+        <div className={styles.langSwitch} role="group" aria-label={nav("language")}>
+          {routing.locales.map((l) => (
+            <button
+              key={l}
+              type="button"
+              className={`${styles.langSwitchBtn} ${l === currentLocale ? styles.langSwitchBtnActive : ""}`}
+              aria-pressed={l === currentLocale}
+              onClick={() => {
+                if (l === currentLocale) return;
+                window.location.href = getPathname({ href: pathname, locale: l });
+              }}
+            >
+              {l.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      )}
 
       {activeIndex !== null && popupPhase !== "closed" && (() => {
         const item = NAV_ITEMS[activeIndex];

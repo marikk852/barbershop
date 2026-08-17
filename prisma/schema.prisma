@@ -95,6 +95,13 @@ model Booking {
   /// тогда уведомление о статусе шлётся только на email (если указан).
   clientTelegramChatId BigInt?
 
+  /// Язык сайта, на котором клиент оформлял заявку ("ru"/"ro", см.
+  /// src/i18n/routing.ts) — уведомления о смене статуса (email, Telegram
+  /// клиенту) шлются ТОЛЬКО на этом языке, а не двуязычно. По умолчанию
+  /// "ru" (дефолтная локаль сайта) — покрывает и старые записи до этого
+  /// поля, и любой сбой определения локали на клиенте.
+  locale String @default("ru")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

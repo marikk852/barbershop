@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { localWeekday, zonedTimeToUtc } from "@/lib/shop-time";
 import { notifyAdminNewBooking } from "@/lib/telegram-bot";
+import { routing } from "@/i18n/routing";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;
@@ -24,6 +25,10 @@ interface CreateBookingBody {
   clientPhone?: string;
   clientEmail?: string;
   notes?: string;
+  /// Язык сайта, на котором клиент оформлял заявку ("ru"/"ro") — см.
+  /// Booking.locale в schema.prisma. Определяет язык последующих
+  /// уведомлений о смене статуса (email, Telegram клиенту).
+  locale?: string;
 }
 
 // Создание заявки на запись — публичный эндпоинт (без авторизации,
@@ -67,6 +72,13 @@ export async function POST(request: Request) {
   if (clientEmail && !EMAIL_RE.test(clientEmail)) {
     return NextResponse.json({ error: "clientEmail doesn't look like an email address" }, { status: 400 });
   }
+  // Не доверяем клиенту слепо (мог прислать что угодно/ничего) — любое
+  // значение вне списка реальных локалей сайта тихо откатывается на
+  // дефолтную, а не 400: язык уведомлений не настолько критичен, чтобы
+  // ронять всю заявку из-за кривого поля.
+  const locale = routing.locales.includes(body.locale as (typeof routing.locales)[number])
+    ? (body.locale as (typeof routing.locales)[number])
+    : routing.defaultLocale;
 
   const services = await prisma.service.findMany({ where: { id: { in: serviceIds }, active: true } });
   // Не просто "хотя бы одна нашлась" — ВСЕ переданные id обязаны
@@ -137,6 +149,7 @@ export async function POST(request: Request) {
         endsAt,
         status: "PENDING",
         notes: notes?.trim() || null,
+        locale,
         services: {
           create: services.map((s) => ({
             serviceId: s.id,

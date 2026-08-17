@@ -54,6 +54,12 @@ export async function applyBookingStatus(id: string, status: AllowedBookingStatu
   // быть заморожена/убита сразу после отправки HTTP-ответа, недописанный
   // "void"-промис рисковал бы никогда не долететь до места назначения.
   // Каждая функция сама ловит свои ошибки и не бросает наружу.
+  // Booking.locale — язык сайта, на котором клиент оформлял заявку
+  // ("ru"/"ro", @default("ru") покрывает записи, созданные до появления
+  // этого поля) — оба клиентских канала уходят ТОЛЬКО на нём, не
+  // двуязычно (было RU+RO в одном сообщении).
+  const clientLocale = updated.locale === "ro" ? "ro" : "ru";
+
   if (updated.clientEmail) {
     await sendBookingStatusEmail(
       {
@@ -62,6 +68,7 @@ export async function applyBookingStatus(id: string, status: AllowedBookingStatu
         serviceNameRu: servicesLabelRu,
         serviceNameRo: servicesLabelRo,
         startsAt: updated.startsAt,
+        locale: clientLocale,
       },
       status,
     );
@@ -70,7 +77,13 @@ export async function applyBookingStatus(id: string, status: AllowedBookingStatu
   if (updated.clientTelegramChatId) {
     await notifyClientStatusChange(
       updated.clientTelegramChatId,
-      { clientName: updated.clientName, servicesLabel: servicesLabelRu, servicesLabelRo, startsAt: updated.startsAt },
+      {
+        clientName: updated.clientName,
+        servicesLabel: servicesLabelRu,
+        servicesLabelRo,
+        startsAt: updated.startsAt,
+        locale: clientLocale,
+      },
       status,
     );
   }

@@ -253,6 +253,7 @@ export function BookingFlow() {
           clientPhone,
           clientEmail: clientEmail.trim() || undefined,
           notes,
+          locale,
         }),
       });
       if (!r.ok) {

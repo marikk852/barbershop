@@ -19,8 +19,11 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
-function formatDateTime(d: Date): string {
-  return new Intl.DateTimeFormat("ru-RU", {
+// Дефолт "ru" — карточка барберу (bookingCard) всегда на русском вне
+// зависимости от локали клиента (это внутреннее сообщение для барбера,
+// не клиентское); notifyClientStatusChange ниже передаёт locale явно.
+function formatDateTime(d: Date, locale: "ru" | "ro" = "ru"): string {
+  return new Intl.DateTimeFormat(locale === "ro" ? "ro-RO" : "ru-RU", {
     day: "numeric",
     month: "long",
     weekday: "short",
@@ -148,26 +151,31 @@ export async function logBookingHistory(data: BookingNotifyData, status: "CONFIR
 
 // Уведомление КЛИЕНТУ о смене статуса — только если он успел перейти по
 // ссылке "Получать уведомления в Telegram" (см. /api/telegram/webhook,
-// обработка /start) и мы знаем его chat_id. Двуязычно (RU+RO в одном
-// сообщении), тот же принцип, что и у email-письма в mailer.ts — локаль,
-// в которой клиент открывал сайт, нигде не сохраняется вместе с записью.
+// обработка /start) и мы знаем его chat_id. Раньше уходило двуязычно
+// (RU+RO в одном сообщении) — по прямой просьбе пользователя заменено на
+// язык сайта, на котором клиент оформлял заявку (Booking.locale, тот же
+// принцип, что и у email-письма в mailer.ts).
 export async function notifyClientStatusChange(
   chatId: bigint,
-  data: { clientName: string; servicesLabel: string; servicesLabelRo: string; startsAt: Date },
+  data: { clientName: string; servicesLabel: string; servicesLabelRo: string; startsAt: Date; locale: "ru" | "ro" },
   status: "CONFIRMED" | "CANCELLED",
 ): Promise<void> {
   const isConfirmed = status === "CONFIRMED";
-  const dt = formatDateTime(data.startsAt);
-  const text = [
-    `Здравствуйте, ${escapeHtml(data.clientName)}!`,
-    isConfirmed ? "Ваша запись подтверждена:" : "Ваша запись отменена:",
-    `📅 ${dt}`,
-    `✂️ ${escapeHtml(data.servicesLabel)}`,
-    "",
-    `Bună, ${escapeHtml(data.clientName)}!`,
-    isConfirmed ? "Programarea dvs. a fost confirmată:" : "Programarea dvs. a fost anulată:",
-    `✂️ ${escapeHtml(data.servicesLabelRo)}`,
-  ].join("\n");
+  const dt = formatDateTime(data.startsAt, data.locale);
+  const text =
+    data.locale === "ro"
+      ? [
+          `Bună, ${escapeHtml(data.clientName)}!`,
+          isConfirmed ? "Programarea dvs. a fost confirmată:" : "Programarea dvs. a fost anulată:",
+          `📅 ${dt}`,
+          `✂️ ${escapeHtml(data.servicesLabelRo)}`,
+        ].join("\n")
+      : [
+          `Здравствуйте, ${escapeHtml(data.clientName)}!`,
+          isConfirmed ? "Ваша запись подтверждена:" : "Ваша запись отменена:",
+          `📅 ${dt}`,
+          `✂️ ${escapeHtml(data.servicesLabel)}`,
+        ].join("\n");
   await callApi("sendMessage", { chat_id: chatId.toString(), text });
 }
 
