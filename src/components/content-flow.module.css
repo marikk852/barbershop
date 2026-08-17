@@ -44,12 +44,14 @@
 }
 .paragraph {
   max-width: 54ch;
+  font-family: var(--font-pt-sans-narrow), sans-serif;
   font-size: 16px;
   line-height: 1.75;
   color: #cfd6de;
 }
 .meta {
   margin-top: 14px;
+  font-family: var(--font-pt-sans-narrow), sans-serif;
   font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -143,12 +145,13 @@ a.badge:focus-visible svg {
   background: rgba(255, 255, 255, 0.02);
 }
 .priceName {
+  font-family: var(--font-pt-sans-narrow), sans-serif;
   font-size: 15px;
   color: #e4e8ec;
 }
 .priceValue {
   white-space: nowrap;
-  font-family: var(--font-bodoni), Didot, serif;
+  font-family: var(--font-pt-sans-narrow), sans-serif;
   font-size: 17px;
   color: #f4f6f8;
 }
@@ -216,6 +219,7 @@ a.badge:focus-visible svg {
   bottom: 0;
   padding: 16px 8px 6px;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.85), transparent);
+  font-family: var(--font-pt-sans-narrow), sans-serif;
   font-size: 10px;
   color: #cfd6de;
   /* Тот же повод, что и у .portfolioImg — нижние углы больше не

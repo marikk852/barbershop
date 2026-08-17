@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bodoni_Moda, Barlow_Condensed } from "next/font/google";
+import { Bodoni_Moda, Barlow_Condensed, PT_Sans_Narrow } from "next/font/google";
 import { hasLocale, NextIntlClientProvider } from "next-intl";
 import { notFound } from "next/navigation";
 import { routing, type Locale } from "@/i18n/routing";
@@ -42,6 +42,23 @@ const barlow = Barlow_Condensed({
   variable: "--font-barlow",
 });
 
+// Точечно для меню (подписи в доке, номера пунктов, кнопка "Пропустить")
+// и попапов (кнопки, текст форм, основной контент — см. .module.css) —
+// по прямой просьбе пользователя, НЕ замена --font-barlow целиком.
+// cyrillic обязателен (в отличие от bodoni/barlow выше, которые грузят
+// только latin — сайт-то в основном на русском): у PT Sans Narrow
+// кириллица — не довесок, а часть исходного дизайна шрифта (ParaType,
+// изначально рисовался под кириллицу/латиницу парой), без этого subset
+// весь кириллический текст в местах применения тихо падал бы обратно на
+// системный sans-serif, вся затея с шрифтом была бы не видна на RU-локали
+// (дефолтной для сайта). Только 400/700 — единственные начертания, которые
+// Google Fonts отдаёт для этого семейства.
+const ptSansNarrow = PT_Sans_Narrow({
+  subsets: ["latin", "cyrillic"],
+  weight: ["400", "700"],
+  variable: "--font-pt-sans-narrow",
+});
+
 type Props = {
   children: React.ReactNode;
   params: Promise<{ locale: string }>;
@@ -59,7 +76,7 @@ export default async function LocaleLayout({ children, params }: Props) {
   return (
     <html
       lang={locale}
-      className={`${bodoni.variable} ${barlow.variable}`}
+      className={`${bodoni.variable} ${barlow.variable} ${ptSansNarrow.variable}`}
       // Браузерные расширения (кошельки типа Bybit и т.п.) дописывают свои
       // data-атрибуты в <html> ДО того, как React гидратируется — это не
       // баг сайта, но React честно предупреждает о рассинхронизации.

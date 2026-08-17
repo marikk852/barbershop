@@ -17,6 +17,7 @@
   border: none;
   background: none;
   color: #9aa2ac;
+  font-family: var(--font-pt-sans-narrow), sans-serif;
   font-size: 13px;
   letter-spacing: 0.03em;
   cursor: pointer;
@@ -54,6 +55,7 @@
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.04);
   color: #cfd6de;
+  font-family: var(--font-pt-sans-narrow), sans-serif;
   font-size: 16px;
   line-height: 1;
   cursor: pointer;
@@ -76,6 +78,7 @@
 }
 .weekdays span {
   text-align: center;
+  font-family: var(--font-pt-sans-narrow), sans-serif;
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -107,6 +110,7 @@
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.035);
   color: #e4e8ec;
+  font-family: var(--font-pt-sans-narrow), sans-serif;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
@@ -127,6 +131,7 @@
 
 .hint {
   margin-top: 4px;
+  font-family: var(--font-pt-sans-narrow), sans-serif;
   font-size: 14px;
   line-height: 1.6;
   color: #a9b0ba;
@@ -171,6 +176,7 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.04);
   color: #e4e8ec;
+  font-family: var(--font-pt-sans-narrow), sans-serif;
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
@@ -197,6 +203,7 @@
 }
 .mismatchNotice {
   margin: -4px 0 12px;
+  font-family: var(--font-pt-sans-narrow), sans-serif;
   font-size: 13px;
   line-height: 1.5;
   color: #e8a8a8;
@@ -216,6 +223,7 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.035);
   color: #e4e8ec;
+  font-family: var(--font-pt-sans-narrow), sans-serif;
   text-align: left;
   cursor: pointer;
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
@@ -301,6 +309,7 @@
   gap: 10px;
 }
 .summaryText {
+  font-family: var(--font-pt-sans-narrow), sans-serif;
   font-size: 14px;
   color: #cfd6de;
 }
@@ -318,7 +327,7 @@
   background: rgba(255, 255, 255, 0.04);
   color: #e4e8ec;
   font-size: 14px;
-  font-family: inherit;
+  font-family: var(--font-pt-sans-narrow), sans-serif;
   transition: border-color 0.2s ease, background 0.2s ease;
 }
 .input::placeholder,
@@ -343,6 +352,7 @@
   border: 1px solid rgba(216, 31, 38, 0.55);
   background: rgba(216, 31, 38, 0.85);
   color: #fff;
+  font-family: var(--font-pt-sans-narrow), sans-serif;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -377,6 +387,7 @@
   border: 1px solid rgba(34, 158, 217, 0.5);
   background: rgba(34, 158, 217, 0.15);
   color: #5ebbe8;
+  font-family: var(--font-pt-sans-narrow), sans-serif;
   font-size: 13px;
   font-weight: 600;
   text-decoration: none;
