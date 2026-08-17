@@ -4,7 +4,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import * as THREE from "three";
 import { useLocale, useTranslations } from "next-intl";
-import { Link, usePathname, getPathname } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
+import { useLocaleSwitch } from "@/components/locale-client-provider";
 import { routing } from "@/i18n/routing";
 import { BookingFlow } from "@/components/booking-flow";
 import { BioFlow } from "@/components/bio-flow";
@@ -98,22 +99,23 @@ export function SiteScene() {
   // Переключатель языка (RU/RO) — отдельный элемент рядом с вертикальным
   // меню (не 5-й navItem внутри самого меню — то жёстко завязано на
   // multi-element FLIP ровно под 4 пункта, см. комментарии у navWrapRefs
-  // ниже; переключатель к тому же не открывает попап, а меняет URL,
-  // логика принципиально другая). currentLocale — язык сайта прямо
-  // сейчас; pathname/getPathname — из next-intl (@/i18n/navigation).
-  // ВАЖНО: смена локали делается ПОЛНОЙ перезагрузкой страницы
-  // (window.location), а не next-intl useRouter().replace() (клиентский
-  // SPA-переход) — проверено вживую: SiteScene никогда раньше не
-  // размонтировался через клиентский transition (единственный способ
-  // сменить локаль до этого переключателя — прямая ссылка/новая загрузка
-  // страницы), а этот компонент насквозь императивный (Three.js-рендерер,
-  // ручные DOM-манипуляции вроде `splash?.remove()`, таймеры) — при
-  // попытке смонтировать/размонтировать его через SPA-навигацию React
-  // ловил реальный краш (`NotFoundError: Failed to execute 'removeChild'
-  // on 'Node'`). Полная перезагрузка страницы обходит это полностью —
-  // именно так уже давно грузится любая другая локаль/страница сайта.
+  // ниже; переключатель к тому же не открывает попап, а меняет язык,
+  // логика принципиально другая). currentLocale читает ВНУТРЕННИЙ
+  // NextIntlClientProvider (см. LocaleClientProvider) — то, что реально
+  // отображается прямо сейчас. switchLocale меняет его БЕЗ навигации —
+  // ни next-intl useRouter().replace() (клиентский SPA-переход), ни
+  // window.location (полная перезагрузка) больше не используются: оба
+  // способа заставляли App Router перестраивать [locale]-маршрут, а
+  // SiteScene — насквозь императивный компонент (Three.js-рендерер,
+  // ручные DOM-манипуляции вроде `splash?.remove()`, таймеры) — не
+  // переживает unmount/remount при таком перестроении (проверено вживую:
+  // реальный краш `NotFoundError: Failed to execute 'removeChild' on
+  // 'Node'` при попытке через router.replace()). LocaleClientProvider
+  // держит два вложенных NextIntlClientProvider именно для того, чтобы
+  // смена языка была чистым React state update — без единого re-mount
+  // этого компонента, подробности см. в самом провайдере.
   const currentLocale = useLocale();
-  const pathname = usePathname();
+  const switchLocale = useLocaleSwitch();
 
   // Решение "показывать ли героическое интро" принимается один раз,
   // синхронно, ДО первой отрисовки (useLayoutEffect) — чтобы не было
@@ -1464,10 +1466,7 @@ export function SiteScene() {
               type="button"
               className={`${styles.langSwitchBtn} ${l === currentLocale ? styles.langSwitchBtnActive : ""}`}
               aria-pressed={l === currentLocale}
-              onClick={() => {
-                if (l === currentLocale) return;
-                window.location.href = getPathname({ href: pathname, locale: l });
-              }}
+              onClick={() => switchLocale(l)}
             >
               {l.toUpperCase()}
             </button>
