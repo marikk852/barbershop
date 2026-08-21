@@ -1087,14 +1087,28 @@ export function SiteScene() {
       // побуквенной подгонкой чёрный/белый. Центр после "выкусывания"
       // остаётся настоящим прозрачным стеклом — там снова виден
       // неискажённый фон, как и было до линзы.
-      const LENS_RING = 15; // CSS px — общая видимая ширина кольца
-      const LENS_RIM_BAND = 9; // CSS px — под-полоса у самого края с LENS_RIM_ZOOM (< LENS_RING)
+      //
+      // Ширина кольца — ДОЛЯ радиуса капсулы (pillR ниже), а не фиксированные
+      // CSS px (было так раньше: LENS_RING=15/LENS_RIM_BAND=9/LENS_FEATHER=10).
+      // Баг с фикс. px: `.lbl` — `font-size: clamp(16px, 2.1vw, 22px)`, на
+      // мобильном шрифт упирается в нижнюю границу (16px), на десктопе — в
+      // верхнюю (22px) — капсула на мобильном физически МЕНЬШЕ (высота ~44px
+      // против ~49px, замерено), поэтому те же фиксированные 15px кольца
+      // занимали БОЛЬШУЮ долю капсулы — "рамка с искажением слишком толстая"
+      // на мобильном при визуально более тонкой на десктопе (жалоба
+      // пользователя, 2026-08-22). Доли ниже подобраны так, чтобы при
+      // текущем desktop-размере (pillR≈24.55px) кольцо давало РОВНО те же
+      // 15/9/10px, что и раньше (десктопный вид не должен был двигаться,
+      // пользователь его не жаловал) — на меньшей мобильной капсуле кольцо
+      // теперь пропорционально тоньше вместе с ней.
+      const LENS_RING_RATIO = 15 / 24.55; // ≈0.611 от pillR
+      const LENS_RIM_BAND_RATIO = 9 / 24.55; // ≈0.367 от pillR
       // Резкая граница между кольцом-линзой и прозрачным центром была
       // заметна как жёсткий шов. blur() на самой стирающей заливке
       // (ниже) размывает именно край erasure в мягкий градиент — дешевле
       // и надёжнее, чем городить отдельную radial-gradient маску под
       // форму таблетки.
-      const LENS_FEATHER = 10; // CSS px
+      const LENS_FEATHER_RATIO = 10 / 24.55; // ≈0.407 от pillR
       let lensDrawnStatic = false;
 
       function drawLenses() {
@@ -1135,7 +1149,7 @@ export function SiteScene() {
           // Path2D из внешнего контура капсулы и внутреннего (уже с отступом
           // LENS_RIM_BAND) через fillRule "evenodd" — так получаем кольцевую
           // область без ручной геометрии дуг под форму "таблетки".
-          const rim = LENS_RIM_BAND * dpr;
+          const rim = pillR * LENS_RIM_BAND_RATIO;
           const rw = lens.width - rim * 2;
           const rh = lens.height - rim * 2;
           // rimPath и strokeGrad (ниже) зависят только от lens.width/height,
@@ -1171,13 +1185,14 @@ export function SiteScene() {
           // destination-out стирает уже нарисованное независимо от формы
           // капсулы (не круг, а вытянутая "таблетка"), поэтому не нужна
           // отдельная math под radial-gradient маску под её пропорции.
-          const ring = LENS_RING * dpr;
+          const ring = pillR * LENS_RING_RATIO;
+          const feather = pillR * LENS_FEATHER_RATIO;
           const iw = lens.width - ring * 2;
           const ih = lens.height - ring * 2;
           if (iw > 0 && ih > 0) {
             ctx.save();
             ctx.globalCompositeOperation = "destination-out";
-            ctx.filter = `blur(${LENS_FEATHER * dpr}px)`;
+            ctx.filter = `blur(${feather}px)`;
             ctx.beginPath();
             ctx.roundRect(ring, ring, iw, ih, Math.min(ih, iw) / 2);
             ctx.fill();
@@ -1205,7 +1220,7 @@ export function SiteScene() {
             ctx.strokeStyle = cached.strokeGrad;
           }
           ctx.lineWidth = Math.max(1, ring * 0.3);
-          ctx.filter = `blur(${LENS_FEATHER * 0.5 * dpr}px)`;
+          ctx.filter = `blur(${feather * 0.5}px)`;
           const inset = ring * 0.55;
           ctx.beginPath();
           ctx.roundRect(inset, inset, lens.width - inset * 2, lens.height - inset * 2, pillR - inset);
