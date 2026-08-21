@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { BookingIcon, BioIcon, PriceIcon, PortfolioIcon, UsersIcon } from "@/components/nav-icons";
+import { BookingIcon, BioIcon, PriceIcon, PortfolioIcon, AnalyticsIcon, UsersIcon } from "@/components/nav-icons";
 import { AdminAuthProvider } from "@/lib/admin-context";
 import { useTelegramWebApp } from "@/lib/telegram-webapp";
 import styles from "./admin.module.css";
 
 const BASE_TABS = [
   { href: "/admin", label: "Заявки", Icon: BookingIcon },
+  { href: "/admin/analytics", label: "Аналитика", Icon: AnalyticsIcon },
   { href: "/admin/services", label: "Прайс", Icon: PriceIcon },
   { href: "/admin/portfolio", label: "Портфолио", Icon: PortfolioIcon },
   { href: "/admin/content", label: "Контент", Icon: BioIcon },

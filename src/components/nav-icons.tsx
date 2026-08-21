@@ -54,6 +54,15 @@ export function PortfolioIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function AnalyticsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 20V10.5M11 20V4M18 20v-6.5" />
+      <path d="M3 20h18" />
+    </svg>
+  );
+}
+
 export function UsersIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...base} {...props}>
