@@ -907,10 +907,25 @@ export function SiteScene() {
       // Красим ПОБУКВЕННО, а не весь лейбл разом — каждая буква реагирует
       // на то, что конкретно под ней (одно слово может наполовину лежать
       // на стали, наполовину на чёрном фоне).
-      const charEls = heroLinks.flatMap((a) => [
-        ...Array.from(a.querySelectorAll<HTMLSpanElement>(`.${styles.numChar}`)),
-        ...Array.from(a.querySelectorAll<HTMLSpanElement>(`.${styles.lblChar}`)),
-      ]);
+      //
+      // charLensEls — свой .lens-канвас КАЖДОЙ буквы (для чтения через
+      // canvasLensPixel ниже, см. комментарий в sampleLabelColors про
+      // рассинхрон с линзой). Параллельный charEls массив, а не
+      // Map/индекс по heroLinks — сам .lens лежит ВНУТРИ той же <a>, что
+      // и буква, querySelector надёжнее любого предположения о порядке
+      // heroLinkRefs/heroLensRefs.
+      const charEls: HTMLSpanElement[] = [];
+      const charLensEls: (HTMLCanvasElement | null)[] = [];
+      heroLinks.forEach((a) => {
+        const lens = a.querySelector<HTMLCanvasElement>(`.${styles.lens}`);
+        [
+          ...Array.from(a.querySelectorAll<HTMLSpanElement>(`.${styles.numChar}`)),
+          ...Array.from(a.querySelectorAll<HTMLSpanElement>(`.${styles.lblChar}`)),
+        ].forEach((el) => {
+          charEls.push(el);
+          charLensEls.push(lens);
+        });
+      });
       let colorSampleAcc = 0;
       const COLOR_SAMPLE_INTERVAL = 1 / 8; // ~8 замеров в секунду
 
@@ -936,6 +951,18 @@ export function SiteScene() {
         return Math.max(0, Math.min(255, s * 255));
       }
 
+      // Кэш 2D-контекста каждого .lens-канваса — не вызывать getContext()
+      // заново на каждую букву/кадр (см. использование в sampleLabelColors).
+      const lensCtxCache = new Map<HTMLCanvasElement, CanvasRenderingContext2D | null>();
+      function getLensCtx(lens: HTMLCanvasElement): CanvasRenderingContext2D | null {
+        let ctx = lensCtxCache.get(lens);
+        if (ctx === undefined) {
+          ctx = lens.getContext("2d");
+          lensCtxCache.set(lens, ctx);
+        }
+        return ctx;
+      }
+
       function sampleLabelColors() {
         renderer.setRenderTarget(pickTarget);
         renderer.render(scene, camera);
@@ -943,7 +970,7 @@ export function SiteScene() {
 
         const pw = pickTarget.width;
         const ph = pickTarget.height;
-        charEls.forEach((el) => {
+        charEls.forEach((el, i) => {
           const r = el.getBoundingClientRect();
           if (r.width === 0 && r.height === 0) return;
           // Нормированные координаты (доля ширины/высоты окна) — не зависят
@@ -954,8 +981,53 @@ export function SiteScene() {
           const py = Math.round((1 - nyTop) * ph); // WebGL — координата Y снизу вверх
           if (cx < 0 || cx >= pw || py < 0 || py >= ph) return;
           renderer.readRenderTargetPixels(pickTarget, cx, py, 1, 1, pixelBuf);
-          const lum =
+          const rawLum =
             0.299 * linearToSrgb8(pixelBuf[0]) + 0.587 * linearToSrgb8(pixelBuf[1]) + 0.114 * linearToSrgb8(pixelBuf[2]);
+
+          // Буквы у скруглённых краёв длинных капсул (напр. "prețuri" в
+          // "Listă de prețuri") физически лежат внутри КОЛЬЦА линзы
+          // (drawLenses — LENS_RING/LENS_RIM_BAND у самого края капсулы) —
+          // человек там видит УВЕЛИЧЕННУЮ (zoom 1.22-2.6×) картинку линзы
+          // поверх исходной сцены, не сырой кадр. rawLum выше игнорирует
+          // это — сэмплит "как было бы без линзы", отсюда рассинхрон:
+          // алгоритм решал "светло → тёмный текст" по сырому пикселю,
+          // хотя реально под буквой было наложение блёклого серого кольца
+          // на чёрный фон, заметно темнее — тёмный текст на нём терялся
+          // (жалоба пользователя, 2026-08-21, капсула "Listă de prețuri").
+          //
+          // Фикс: читаем реальный пиксель ИЗ .lens-канваса (2D, уже
+          // содержит финальный, отображаемый кадр — линеаризация не
+          // нужна, в отличие от pickTarget выше) в ТОЙ ЖЕ точке и
+          // смешиваем с rawLum по alpha кольца — ровно то же alpha-
+          // компоузитинг, что браузер сам делает при отрисовке (кольцо
+          // рисуется НАД сценой, .heroNav a без backdrop-filter — то, что
+          // не закрыто кольцом, ВИДНО как есть, см. комментарий в
+          // site-scene.module.css у .heroNav). При alpha=0 (истинный
+          // прозрачный центр капсулы, вне кольца) blendedLum === rawLum.
+          let lum = rawLum;
+          const lens = charLensEls[i];
+          const lensCtx = lens && getLensCtx(lens);
+          if (lens && lensCtx && lens.width > 0 && lens.height > 0) {
+            const lr = lens.getBoundingClientRect();
+            if (lr.width > 0 && lr.height > 0) {
+              const lx = Math.round(((r.left + r.width / 2 - lr.left) / lr.width) * lens.width);
+              const ly = Math.round(((r.top + r.height / 2 - lr.top) / lr.height) * lens.height);
+              if (lx >= 0 && lx < lens.width && ly >= 0 && ly < lens.height) {
+                try {
+                  const px = lensCtx.getImageData(lx, ly, 1, 1).data;
+                  const alpha = px[3] / 255;
+                  if (alpha > 0) {
+                    const lensLum = 0.299 * px[0] + 0.587 * px[1] + 0.114 * px[2];
+                    lum = alpha * lensLum + (1 - alpha) * rawLum;
+                  }
+                } catch {
+                  // Канвас линзы временно нечитаем (0×0 в момент ресайза
+                  // и т.п.) — используем rawLum, не критично, следующий
+                  // замер через 1/8с всё поправит.
+                }
+              }
+            }
+          }
           // Порог 55 (было раньше) выбирал тёмный текст СИЛЬНО раньше, чем
           // тот реально становится контрастнее белого — из-за этого на
           // среднё-тёмных тонах стали (~60-110 sRGB, самая частая зона:
@@ -1272,15 +1344,8 @@ export function SiteScene() {
           renderer.render(scene, camera);
         }
 
-        if (heroMenu > 0 && !navCollapsedRef.current) {
-          colorSampleAcc += dt;
-          if (colorSampleAcc >= COLOR_SAMPLE_INTERVAL) {
-            colorSampleAcc = 0;
-            sampleLabelColors();
-          }
-        }
         // Линза (drawLenses) — раньше гейтилась ТЕМ ЖЕ условием, что и
-        // sampleLabelColors() выше (!navCollapsedRef.current, т.е. только
+        // sampleLabelColors() ниже (!navCollapsedRef.current, т.е. только
         // вертикаль) — по прямой просьбе пользователя ("настоящее
         // интерактивное стекло, реагирующее на задний фон") включаем её и
         // в доке. sampleLabelColors() остаётся вертикаль-only осознанно —
@@ -1290,6 +1355,13 @@ export function SiteScene() {
         // АКТУАЛЬНОЕ положение канваса линзы — не зависит от того, докнуто
         // меню или нет, работает одинаково в обоих раскладках без доп.
         // веток.
+        //
+        // ВАЖЕН ПОРЯДОК: drawLenses() должна отработать ДО
+        // sampleLabelColors() в этом же кадре — sampleLabelColors читает
+        // пиксели ИЗ .lens-канвасов (см. её комментарий про кольцо линзы),
+        // и если бы порядок был обратный, читался бы кадр линзы,
+        // отставший на один тик (не критично при 8 замерах/сек, но незачем
+        // вносить лишний источник рассинхрона).
         if ((heroMenu > 0 || navCollapsedRef.current) && !document.hidden) {
           // prefers-reduced-motion: сцена и так не вращается (autoSpin/
           // float гейтятся выше), поэтому линзу достаточно нарисовать один
@@ -1305,6 +1377,14 @@ export function SiteScene() {
             }
           } else {
             drawLenses();
+          }
+        }
+
+        if (heroMenu > 0 && !navCollapsedRef.current) {
+          colorSampleAcc += dt;
+          if (colorSampleAcc >= COLOR_SAMPLE_INTERVAL) {
+            colorSampleAcc = 0;
+            sampleLabelColors();
           }
         }
 
