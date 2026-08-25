@@ -34,6 +34,7 @@ export async function GET(request: Request) {
   const bookings = await prisma.booking.findMany({
     where: { status: "DONE" },
     select: {
+      id: true,
       clientName: true,
       clientPhone: true,
       startsAt: true,
@@ -41,6 +42,7 @@ export async function GET(request: Request) {
     },
   });
   const records = bookings.map((b) => ({
+    id: b.id,
     clientName: b.clientName,
     clientPhone: b.clientPhone,
     startsAt: b.startsAt,

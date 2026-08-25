@@ -203,10 +203,27 @@ export function getBuckets(period: Period, range: PeriodRange, dayHours: { start
 }
 
 export interface DoneBookingRecord {
+  id: string;
   clientName: string;
-  clientPhone: string;
+  /// NULL — запись внесена барбером вручную (source=MANUAL, см. Booking
+  /// в schema.prisma), уличный клиент часто не оставляет номер. См.
+  /// identityKey() ниже — как это учитывается при подсчёте клиентов.
+  clientPhone: string | null;
   startsAt: Date;
   revenueCents: number;
+}
+
+/// Ключ группировки "один и тот же клиент" для подсчёта уникальных/новых
+/// клиентов. Записи БЕЗ телефона нельзя схлопывать друг с другом как
+/// одного человека — мы физически не можем это проверить, а ошибочно
+/// объединить двух РАЗНЫХ людей в аналитике хуже, чем недосчитать
+/// повторного анонимного визита (редкий случай). Синтетический ключ на
+/// основе id брони гарантированно уникален и никогда не повторяется —
+/// благодаря этому такая запись автоматически проходит через ОБЩУЮ
+/// логику ниже (подсчёт клиентов/новых клиентов) как "клиент, которого
+/// видим первый и единственный раз", без отдельных if-веток на null.
+function identityKey(b: DoneBookingRecord): string {
+  return b.clientPhone ?? `__anon_${b.id}__`;
 }
 
 export interface SeriesPoint {
@@ -240,9 +257,10 @@ export function computeAnalytics(
 ): AnalyticsResult {
   const firstVisit = new Map<string, number>();
   for (const b of allDoneBookings) {
+    const key = identityKey(b);
     const t = b.startsAt.getTime();
-    const prev = firstVisit.get(b.clientPhone);
-    if (prev === undefined || t < prev) firstVisit.set(b.clientPhone, t);
+    const prev = firstVisit.get(key);
+    if (prev === undefined || t < prev) firstVisit.set(key, t);
   }
 
   const rangeStart = range.startsAt.getTime();
@@ -252,10 +270,10 @@ export function computeAnalytics(
     return t >= rangeStart && t < rangeEnd;
   });
 
-  const clientsInPeriod = new Set(periodBookings.map((b) => b.clientPhone));
+  const clientsInPeriod = new Set(periodBookings.map((b) => identityKey(b)));
   let newClientsCount = 0;
-  for (const phone of clientsInPeriod) {
-    const first = firstVisit.get(phone);
+  for (const key of clientsInPeriod) {
+    const first = firstVisit.get(key);
     if (first !== undefined && first >= rangeStart && first < rangeEnd) newClientsCount++;
   }
 
@@ -275,6 +293,17 @@ export function computeAnalytics(
 
   const byPhone = new Map<string, { name: string; nameAt: number; bookingsCount: number; revenueCents: number }>();
   for (const b of allDoneBookings) {
+    // Без телефона — не участвует в топе клиентов (в отличие от
+    // clientsCount/newClientsCount выше, где такая запись честно
+    // учитывается как отдельный анонимный клиент). Топ — рейтинг
+    // ПОСТОЯННЫХ клиентов по накопленной истории визитов; у анонимной
+    // записи такой истории физически нет и быть не может (это разовая
+    // walk-in-запись без идентификатора), ранжировать её было бы
+    // бессмысленно — попала бы в список как "клиент с 1 визитом",
+    // засоряя топ одноразовыми строками вместо реальных постоянных
+    // клиентов. Деньги (totals.revenueCents выше) при этом никуда не
+    // пропадают — просто не привязаны к конкретному имени в топе.
+    if (!b.clientPhone) continue;
     const entry = byPhone.get(b.clientPhone);
     const t = b.startsAt.getTime();
     if (!entry) {

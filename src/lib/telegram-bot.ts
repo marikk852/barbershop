@@ -71,7 +71,9 @@ async function callApi<T>(method: string, body: Record<string, unknown>): Promis
 export interface BookingNotifyData {
   id: string;
   clientName: string;
-  clientPhone: string;
+  /// NULL — запись внесена барбером вручную без номера (source=MANUAL,
+  /// см. Booking.clientPhone в schema.prisma).
+  clientPhone: string | null;
   startsAt: Date;
   /// "Стрижка + Оформление бороды" — уже склеено вызывающей стороной
   /// (та же логика, что и serviceNameRu в mailer.ts).
@@ -85,7 +87,7 @@ function bookingCard(data: BookingNotifyData, statusLine?: string): string {
     "🆕 <b>Новая запись</b>",
     "",
     `👤 ${escapeHtml(data.clientName)}`,
-    `📞 ${escapeHtml(data.clientPhone)}`,
+    `📞 ${data.clientPhone ? escapeHtml(data.clientPhone) : "не указан"}`,
     `📅 ${formatDateTime(data.startsAt)}`,
     `✂️ ${escapeHtml(data.servicesLabel)} · ${data.totalDurationMin} мин · ${(data.totalPriceCents / 100).toLocaleString("ru-RU")} MDL`,
   ];

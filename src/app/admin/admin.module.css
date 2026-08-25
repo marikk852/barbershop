@@ -65,6 +65,16 @@
   gap: 10px;
   margin-bottom: 8px;
 }
+/* Обёртка для имени клиента + доп. бейджей (напр. "Вручную") внутри
+   .cardHeader — держит .cardHeader ровно 2 flex-child'а (эта обёртка +
+   статус-бейдж справа), иначе justify-content:space-between раскидал бы
+   3+ элемента неравномерно. */
+.cardHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 .clientName {
   font-size: 16px;
   font-weight: 600;
