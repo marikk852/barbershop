@@ -130,6 +130,24 @@ export default function AdminPage() {
       });
   }, [load, adminFetch]);
 
+  async function deleteBooking(id: string, clientName: string) {
+    // Физическое удаление — необратимо, в отличие от смены статуса, поэтому
+    // отдельное подтверждение здесь (в отличие от updateStatus выше).
+    if (!window.confirm(`Удалить запись «${clientName}» навсегда? Это действие нельзя отменить.`)) return;
+    setPendingId(id);
+    try {
+      const r = await adminFetch(`/api/admin/bookings/${id}`, { method: "DELETE" });
+      if (!r.ok) throw new Error("Не удалось удалить запись");
+      haptic("success");
+      setBookings((prev) => (prev ? prev.filter((b) => b.id !== id) : prev));
+    } catch {
+      haptic("error");
+      setError("Не удалось удалить запись — попробуйте ещё раз.");
+    } finally {
+      setPendingId(null);
+    }
+  }
+
   async function updateStatus(id: string, status: BookingStatus) {
     setPendingId(id);
     try {
@@ -382,6 +400,19 @@ export default function AdminPage() {
                     onClick={() => updateStatus(b.id, "CANCELLED")}
                   >
                     Отменить
+                  </button>
+                </div>
+              )}
+
+              {(b.status === "CANCELLED" || b.status === "DONE") && (
+                <div className={styles.actions}>
+                  <button
+                    type="button"
+                    className={styles.cancelBtn}
+                    disabled={pendingId === b.id}
+                    onClick={() => deleteBooking(b.id, b.clientName)}
+                  >
+                    Удалить
                   </button>
                 </div>
               )}
