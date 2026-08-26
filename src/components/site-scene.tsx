@@ -940,6 +940,36 @@ export function SiteScene() {
       window.addEventListener("resize", resize);
       resize();
 
+      // ---------- прогрев GPU-шейдеров до первого видимого кадра ----------
+      // Жалоба: сцена тормозит с очень низким FPS на устройстве, которое
+      // ЕЩЁ НИ РАЗУ не открывало сайт, а после любой перезагрузки того же
+      // устройства уже летает идеально. Причина не в коде сцены (тот не
+      // меняется между загрузками) — MeshPhysicalMaterial с clearcoat/
+      // anisotropy (steel/steelDark/bladeLine/handleMat) компилирует
+      // тяжёлые GLSL-программы ЛЕНИВО, при первом же renderer.render().
+      // На "чистом" устройстве у GPU-драйвера ещё нет закэшированных
+      // бинарников этих шейдеров (тот же принцип, что и ANGLE disk shader
+      // cache в Chrome) — первая компиляция может стопорить главный поток
+      // на секунды. После перезагрузки драйверный кэш уже тёплый — отсюда
+      // "работает идеально" без единой правки кода.
+      //
+      // renderer.compileAsync() — официальный API three.js именно под эту
+      // проблему (докстрока: "resolves when scene can be rendered without
+      // unnecessary stalling due to shader compilation"): при поддержке
+      // браузером KHR_parallel_shader_compile компиляция идёт на драйвере
+      // В ФОНЕ, не блокируя JS-поток — вместо того чтобы неявно всплывать
+      // внутри первого кадра рендер-цикла и морозить всё (включая
+      // rAF-петлю самой заставки). Рендер-цикл (frame(), ниже) стартует
+      // ТОЛЬКО после того как прогрев завершится (см. startLoop) — тогда
+      // самый первый видимый renderer.render() уже бьёт по готовым
+      // программам и не стопорится. Заставка (CSS/SVG, не WebGL) при этом
+      // продолжает крутиться как обычно все MIN_MS — на быстром прогреве
+      // (браузер с расширением) пользователь вообще не заметит паузу,
+      // на медленном (браузер без расширения — блокирующий фолбэк, как и
+      // было раньше) стопор всё так же спрятан за заставкой, поведение не
+      // хуже прежнего.
+      const warmupPromise = renderer.compileAsync(scene, camera).catch(() => {});
+
       // Three.js применяет toneMapping/sRGB-гамму только к тому, что реально
       // попадает на экран (канвас); произвольный WebGLRenderTarget получает
       // "сырые" линейные значения — тот же самый видимый светлый пиксель
@@ -1406,9 +1436,28 @@ export function SiteScene() {
         sceneReady = true;
         rafId = requestAnimationFrame(frame);
       }
-      rafId = requestAnimationFrame(frame);
+      // Старт цикла ГЕЙТИТСЯ прогревом (warmupPromise, см. выше) — не
+      // requestAnimationFrame(frame) напрямую. dt в frame() считается от
+      // `last`, которое иначе было бы выставлено ЗАДОЛГО до реального
+      // первого кадра (прогрев может занять секунды) — без сброса первый
+      // кадр получил бы аномально большой dt и дёрнул анимацию рывком.
+      let loopStarted = false;
+      let disposed = false;
+      function startLoop() {
+        if (loopStarted || disposed) return;
+        loopStarted = true;
+        last = performance.now();
+        rafId = requestAnimationFrame(frame);
+      }
+      warmupPromise.then(startLoop);
+      // Защитный таймаут — если compileAsync никогда не резолвится (баг
+      // конкретного браузера/связки драйверов), сцена всё равно обязана
+      // стартовать, а не повиснуть навсегда.
+      const warmupTimeoutId = setTimeout(startLoop, 4000);
 
       return () => {
+        disposed = true;
+        clearTimeout(warmupTimeoutId);
         cancelAnimationFrame(rafId);
         canvas.removeEventListener("pointerdown", onPointerDown);
         canvas.removeEventListener("pointermove", onPointerMove);
