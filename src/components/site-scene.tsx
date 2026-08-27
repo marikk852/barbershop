@@ -640,10 +640,19 @@ export function SiteScene() {
         wordRef.current.innerHTML = [...BRAND].map((c) => `<span>${c}</span>`).join("");
       }
       const MIN_MS = 4300, MAX_MS = 7000, t0 = performance.now();
+      // Нажатие "Пропустить"/Escape ДО того, как прогрелась сцена (см.
+      // warmupPromise в setup3D) — реальный баг, найденный на iPhone 14
+      // Pro: сюда попадали БЕЗУСЛОВНО, canvas.glOn снимался, а рендер-цикл
+      // ещё не сделал ни одного кадра (стартует только после прогрева
+      // шейдеров) — пользователь видел ПУСТОЙ канвас, который "оживал"
+      // рывком, как только прогрев наконец завершался. skipRequested
+      // снимает MIN_MS-ожидание, но не сам sceneReady-гейт — reveal() тем
+      // же путём, что и обычное завершение заставки ниже.
+      let skipRequested = false;
       const tick = () => {
         if (splashDone) return;
         const elapsed = performance.now() - t0;
-        if ((elapsed >= MIN_MS && sceneReady) || elapsed >= MAX_MS) {
+        if (((elapsed >= MIN_MS || skipRequested) && sceneReady) || elapsed >= MAX_MS) {
           splashDone = true;
           finishSplash();
           return;
@@ -652,10 +661,17 @@ export function SiteScene() {
       };
       introRaf = requestAnimationFrame(tick);
       skipNow = () => {
-        if (splashDone) return;
-        splashDone = true;
-        cancelAnimationFrame(introRaf);
-        finishSplash();
+        if (splashDone || skipRequested) return;
+        if (sceneReady) {
+          splashDone = true;
+          cancelAnimationFrame(introRaf);
+          finishSplash();
+          return;
+        }
+        // Сцена ещё не готова — просто снимаем MIN_MS-ожидание, tick()
+        // (уже запущен выше) сам доиграет reveal, как только sceneReady
+        // станет true, максимум за MAX_MS как и раньше.
+        skipRequested = true;
       };
       skipBtn?.addEventListener("click", skipNow);
     } else {
