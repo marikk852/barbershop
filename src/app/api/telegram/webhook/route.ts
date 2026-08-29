@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { applyBookingStatus } from "@/lib/booking-status";
+import { sendBookingNotifications, updateBookingStatus } from "@/lib/booking-status";
 import { prisma } from "@/lib/prisma";
 import { answerCallbackQuery, sendTelegramLinkedConfirmation } from "@/lib/telegram-bot";
 
@@ -74,8 +74,24 @@ async function handleCallbackQuery(cq: NonNullable<TelegramUpdate["callback_quer
   }
 
   const status = action === "confirm" ? "CONFIRMED" : "CANCELLED";
-  const result = await applyBookingStatus(bookingId, status);
-  await answerCallbackQuery(cq.id, result.ok ? (action === "confirm" ? "Подтверждено" : "Отклонено") : "Запись не найдена");
+  // Найденный баг: раньше answerCallbackQuery (тост в Telegram) ждал
+  // ПОЛНУЮ цепочку — email клиенту + Telegram-сообщение клиенту +
+  // удаление карточки в "Заявках" + запись в "Записи" — 4-5
+  // последовательных сетевых вызовов (особенно SMTP на Gmail, тот
+  // медленный). На реальной записи (с email/Telegram клиента, в отличие
+  // от тестовых без них) это могло не уложиться в лимит времени
+  // serverless-функции — барбер жал кнопку в группе и не видел СОВСЕМ
+  // НИЧЕГО, функцию обрывало до ответа Telegram. Поэтому здесь ДВЕ
+  // ОТДЕЛЬНЫЕ фазы (см. lib/booking-status.ts): быстрая смена статуса →
+  // answerCallbackQuery СРАЗУ (барбер видит тост почти мгновенно) →
+  // ТОЛЬКО ПОТОМ медленная рассылка (по-прежнему полностью awaited, не
+  // fire-and-forget — тот же риск заморозки serverless после ответа,
+  // что и раньше, просто ответ теперь не ждёт эту часть).
+  const updated = await updateBookingStatus(bookingId, status);
+  await answerCallbackQuery(cq.id, updated ? (action === "confirm" ? "Подтверждено" : "Отклонено") : "Запись не найдена");
+  if (updated) {
+    await sendBookingNotifications(updated, status);
+  }
 }
 
 async function handleStart(message: NonNullable<TelegramUpdate["message"]>) {

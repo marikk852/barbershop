@@ -12,16 +12,20 @@ export type AllowedBookingStatus = (typeof ALLOWED_BOOKING_STATUSES)[number];
 
 export type ApplyStatusResult = { ok: true; id: string; status: string } | { ok: false; reason: "not-found" };
 
-// Общая точка входа для смены статуса записи — раньше жила только в
-// PATCH /api/admin/bookings/[id] (ручное подтверждение из админки),
-// теперь сюда же приходит и нажатие кнопки под Telegram-уведомлением
-// (см. /api/telegram/webhook): один и тот же путь валидации + рассылки
-// уведомлений (email клиенту, Telegram клиенту, удаление карточки в
-// "Заявках" + запись решения в "Записи"), не два дублирующих друг друга.
-export async function applyBookingStatus(id: string, status: AllowedBookingStatus): Promise<ApplyStatusResult> {
-  let updated;
+// Быстрая часть — ТОЛЬКО смена статуса в БД, без единого сетевого вызова
+// вовне. Вынесена отдельно (см. applyBookingStatus и webhook ниже) —
+// найденный баг: /api/telegram/webhook раньше вызывал answerCallbackQuery
+// (тост "Подтверждено"/"Отклонено" в Telegram) ПОСЛЕДНИМ шагом, ПОСЛЕ
+// всей цепочки email+Telegram-клиенту+удаление карточки+запись в
+// историю — 4-5 последовательных сетевых вызова (особенно SMTP на Gmail
+// — медленный TLS-хендшейк) могли не уложиться в лимит времени
+// serverless-функции на Vercel: барбер жал кнопку в группе и не видел
+// СОВСЕМ НИЧЕГО (ни тоста, ни изменений) — функцию обрывало ДО того как
+// она успевала вообще ответить Telegram, хотя сама смена статуса (эта
+// функция) уже могла пройти успешно.
+async function updateBookingStatus(id: string, status: AllowedBookingStatus) {
   try {
-    updated = await prisma.booking.update({
+    return await prisma.booking.update({
       where: { id },
       data: { status },
       include: { services: { include: { service: { select: { nameRu: true, nameRo: true, priceCents: true } } } } },
@@ -29,31 +33,28 @@ export async function applyBookingStatus(id: string, status: AllowedBookingStatu
   } catch {
     // Prisma кидает при "запись не найдена" (P2025) — единственный
     // реалистичный сценарий ошибки здесь (id уже провалидирован формой
-    // запроса выше по стеку); не разбираем код конкретно, 404 корректен
+    // запроса выше по стеку); не разбираем код конкретно, null корректен
     // в обоих смыслах.
-    return { ok: false, reason: "not-found" };
+    return null;
   }
+}
 
-  // DONE — внутренняя пометка барбера постфактум (услуга оказана),
-  // клиенту и так уже всё известно, уведомлять незачем. Заодно (не
-  // через Set.has(), тот не сужает тип для TS) дальше status
-  // гарантированно "CONFIRMED" | "CANCELLED", ровно то, что ждут
-  // sendBookingStatusEmail/notifyClientStatusChange/logBookingHistory.
-  if (status !== "CONFIRMED" && status !== "CANCELLED") {
-    return { ok: true, id: updated.id, status: updated.status };
-  }
+type UpdatedBooking = NonNullable<Awaited<ReturnType<typeof updateBookingStatus>>>;
 
+// Медленная часть — три уведомления (email клиенту, Telegram клиенту,
+// удаление карточки в "Заявках" + запись решения в "Записи"). Все
+// best-effort, не часть "транзакции" смены статуса: статус брони уже
+// сохранён независимо от их исхода. ВАЖНО: await на каждое, а не
+// "fire and forget" — serverless-функция может быть заморожена/убита
+// сразу после отправки HTTP-ответа ВЫЗЫВАЮЩЕЙ стороны (webhook/PATCH),
+// недописанный "void"-промис рисковал бы никогда не долететь до места
+// назначения. Каждая функция сама ловит свои ошибки и не бросает наружу.
+async function sendBookingNotifications(updated: UpdatedBooking, status: "CONFIRMED" | "CANCELLED"): Promise<void> {
   const servicesLabelRu = updated.services.map((bs) => bs.service.nameRu).join(" + ");
   const servicesLabelRo = updated.services.map((bs) => bs.service.nameRo).join(" + ");
   const totalDurationMin = updated.services.reduce((sum, bs) => sum + bs.durationMin, 0);
   const totalPriceCents = updated.services.reduce((sum, bs) => sum + bs.priceCents, 0);
 
-  // Все три уведомления — best-effort, не часть "транзакции" смены
-  // статуса: статус брони уже сохранён независимо от их исхода. ВАЖНО:
-  // await на каждое, а не "fire and forget" — serverless-функция может
-  // быть заморожена/убита сразу после отправки HTTP-ответа, недописанный
-  // "void"-промис рисковал бы никогда не долететь до места назначения.
-  // Каждая функция сама ловит свои ошибки и не бросает наружу.
   // Booking.locale — язык сайта, на котором клиент оформлял заявку
   // ("ru"/"ro", @default("ru") покрывает записи, созданные до появления
   // этого поля) — оба клиентских канала уходят ТОЛЬКО на нём, не
@@ -106,6 +107,30 @@ export async function applyBookingStatus(id: string, status: AllowedBookingStatu
     await deleteAdminBookingMessage(updated.telegramMessageId);
   }
   await logBookingHistory(notifyData, status);
+}
+
+// Общая точка входа для смены статуса записи — раньше жила только в
+// PATCH /api/admin/bookings/[id] (ручное подтверждение из админки),
+// теперь сюда же приходит и нажатие кнопки под Telegram-уведомлением
+// (см. /api/telegram/webhook): один и тот же путь валидации + рассылки
+// уведомлений, не два дублирующих друг друга. Для PATCH (обычный HTTP-
+// запрос из браузера админки) порядок фаз внутри не важен — фронт и так
+// ждёт полного ответа. Webhook же вызывает фазы РАЗДЕЛЬНО (см. его код)
+// — см. комментарий у updateBookingStatus выше, почему.
+export async function applyBookingStatus(id: string, status: AllowedBookingStatus): Promise<ApplyStatusResult> {
+  const updated = await updateBookingStatus(id, status);
+  if (!updated) {
+    return { ok: false, reason: "not-found" };
+  }
+
+  // DONE — внутренняя пометка барбера постфактум (услуга оказана),
+  // клиенту и так уже всё известно, уведомлять незачем.
+  if (status === "CONFIRMED" || status === "CANCELLED") {
+    await sendBookingNotifications(updated, status);
+  }
 
   return { ok: true, id: updated.id, status: updated.status };
 }
+
+export { updateBookingStatus, sendBookingNotifications };
+export type { UpdatedBooking };
