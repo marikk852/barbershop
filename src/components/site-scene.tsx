@@ -422,6 +422,31 @@ export function SiteScene() {
     if (activeIndex === null) {
       // Первое открытие — синхронно коллапс меню в док + попап.
       captureFlipBefore();
+      // Источник геометрии для попапа — квадрат размером с доковую иконку
+      // (52×52, см. .heroNavDock a), центрированный на той же точке, что и
+      // клик, а НЕ реальный вертикальный прямоугольник капсулы (~194×49,
+      // border-radius 999px). Раньше брали именно его: на пути от узкой
+      // пилюли к панели (~600×660, border-radius 28px) ширина и высота
+      // сближаются не сразу (высота у пилюли почти не меняется, у панели
+      // растёт куда сильнее ширины) — где-то на середине пути читалось
+      // как сплюснутый/вытянутый овал (жалоба пользователя — видно и на
+      // открытии, и на закрытии, т.к. popupOrigin общий для обеих фаз).
+      // Пробовали поправить это ОТДЕЛЬНЫМ вторым setState в
+      // useLayoutEffect (измерить реальный rect уже доковой, круглой
+      // капсулы, после применения класса .heroNavDock) — не помогло:
+      // React всё равно успевает закоммитить и ПОКРАСИТЬ первый кадр с
+      // широкой пилюлей до того, как применится исправление (проверено
+      // логами committed-таймингов — два раздельных коммита с paint между
+      // ними), так что вспышка узкого овала оставалась. Синтетический
+      // квадрат, посчитанный СРАЗУ здесь, попадает в САМЫЙ ПЕРВЫЙ коммит
+      // — второго кадра с неверной геометрией просто не существует.
+      const DOCK_ICON_SIZE = 52;
+      const popupOriginRect: Rect = {
+        left: rect.left + rect.width / 2 - DOCK_ICON_SIZE / 2,
+        top: rect.top + rect.height / 2 - DOCK_ICON_SIZE / 2,
+        width: DOCK_ICON_SIZE,
+        height: DOCK_ICON_SIZE,
+      };
       // WebGL-цикл (frame()) больше не будет трогать эти инлайн-стили,
       // пока меню в доке (navCollapsedRef) — снимаем их явно, иначе
       // последнее выставленное JS-значение (left/width/opacity капсулы,
@@ -440,7 +465,7 @@ export function SiteScene() {
       // в обратную сторону (лочим скролл при открытии).
       // eslint-disable-next-line react-hooks/immutability
       document.body.style.overflow = "hidden";
-      setPopupOrigin(rect);
+      setPopupOrigin(popupOriginRect);
       setActiveIndex(index);
       setDockMode(true);
       setPopupPhase(reduced ? "open" : "opening");
