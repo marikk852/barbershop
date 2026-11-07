@@ -149,7 +149,6 @@ export function SiteScene() {
   const skipRef = useRef<HTMLButtonElement>(null);
   const fallbackRef = useRef<HTMLDivElement>(null);
   const heroLinkRefs = useRef<(HTMLAnchorElement | null)[]>([]);
-  const heroLensRefs = useRef<(HTMLCanvasElement | null)[]>([]);
 
   /* ============================================================
      ПОПАП МЕНЮ (общий для всех 4 пунктов) + СВОРАЧИВАНИЕ МЕНЮ В ДОК.
@@ -329,7 +328,6 @@ export function SiteScene() {
     // ещё какое-то время.
     heroLinkRefs.current.forEach((a, i) => {
       if (!a) return;
-      const lens = heroLensRefs.current[i];
       if (dockMode) {
         const r = before.links[i];
         if (!r) return;
@@ -338,10 +336,6 @@ export function SiteScene() {
         a.style.height = `${r.height}px`;
       } else {
         a.style.transition = "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease, box-shadow 0.25s ease";
-        if (lens) {
-          lens.style.transition = "none";
-          lens.style.opacity = "1";
-        }
       }
     });
     void document.body.offsetHeight;
@@ -370,7 +364,7 @@ export function SiteScene() {
     };
     const raf = requestAnimationFrame(() => {
       navWrapRefs.current.forEach(clear);
-      heroLinkRefs.current.forEach((a, i) => {
+      heroLinkRefs.current.forEach((a) => {
         if (!a) return;
         // Возвращаем полный transition-список из CSS-класса в обоих
         // случаях (нужен дальше для hover/focus в любом состоянии).
@@ -385,8 +379,6 @@ export function SiteScene() {
         // В вертикали (!dockMode) width/height не трогаем вообще — они
         // не замораживались (см. useLayoutEffect выше, ветка else), уже
         // "" и уже на финальном fit-content значении с первого кадра.
-        const lens = heroLensRefs.current[i];
-        if (lens) lens.style.transition = "";
       });
     });
     return () => cancelAnimationFrame(raf);
@@ -454,12 +446,6 @@ export function SiteScene() {
       // .heroNavDock своим приоритетом инлайн-стиля.
       heroNavRef.current?.removeAttribute("style");
       heroLinkRefs.current.forEach((a) => a?.removeAttribute("style"));
-      // Линзе тоже: на закрытии (closePopup) ей ставится инлайн
-      // opacity:"1" в обход её собственного transition (см. useLayoutEffect
-      // ниже) — если не снять, он навсегда перебьёт `.heroNavDock .lens
-      // {opacity:0}` (инлайн всегда сильнее класса), и доковые круглые
-      // иконки начали бы просвечивать линзой вместо чистого SVG-значка.
-      heroLensRefs.current.forEach((lens) => lens?.removeAttribute("style"));
       prevOverflowRef.current = document.body.style.overflow;
       // См. пояснение в finalizeClose — тот же осознанный случай, только
       // в обратную сторону (лочим скролл при открытии).
@@ -605,10 +591,6 @@ export function SiteScene() {
     const heroNavEl = heroNavRef.current!;
     const hintEl = hintRef.current; // null, если !isHero
     const heroLinks = heroLinkRefs.current.filter((a): a is HTMLAnchorElement => !!a);
-    // Линзы liquid-glass — по одному <canvas> на пункт меню, см. drawLenses()
-    // в setup3D(). Индексация не важна (каждый канвас сам знает свой
-    // getBoundingClientRect), поэтому просто фильтруем null'ы.
-    const lensCanvases = heroLensRefs.current.filter((c): c is HTMLCanvasElement => !!c);
 
     let sceneReady = false;
     const isHero = heroFirstVisit;
@@ -717,14 +699,20 @@ export function SiteScene() {
       // не бутылочное горлышко (проверено: 60fps держится даже под 6x
       // CPU-throttling в DevTools, замер headless-Chromium с реальным
       // GPU через ANGLE/Metal) — узкое место именно в GPU/fill-rate.
-      // MSAA (antialias) — одна из самых дорогих вещей для мобильного
-      // GPU при таком количестве треугольников/материалов, отключаем на
-      // тачскринах; DPR тоже снижаем (2 → 1.5) — меньше пикселей на
-      // кадр, на маленьком экране разница в резкости почти не читается.
+      // DPR на тачскринах снижаем (2 → 1.5) — меньше пикселей на кадр, на
+      // маленьком экране разница в резкости почти не читается.
+      //
+      // MSAA (antialias) раньше выключался на тачскринах — тогда виноватым
+      // в лагах на Samsung Galaxy S23 сочли GPU. Замер 2026-11-07 показал,
+      // что главные тормоза давали синхронные чтения пикселей с GPU
+      // (побуквенный цвет текста меню + линзы, теперь удалены), а без MSAA
+      // на телефонах были видны "лесенки" на гранях клинка (жалоба
+      // пользователя). На тайловых мобильных GPU (Apple, Mali, Adreno) MSAA
+      // резолвится прямо в тайле и почти бесплатен — включаем везде.
       const isTouch = matchMedia("(pointer: coarse)").matches;
       let renderer: THREE.WebGLRenderer;
       try {
-        renderer = new THREE.WebGLRenderer({ canvas, antialias: !isTouch, alpha: true, powerPreference: "high-performance" });
+        renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
       } catch {
         if (fallbackRef.current) fallbackRef.current.style.display = "grid";
         return null;
@@ -930,53 +918,12 @@ export function SiteScene() {
       const lookTo = new THREE.Vector3(-0.33, 2.42, 0);
       const tmp = new THREE.Vector3();
 
-      // ---------- чёрно-белый текст меню по фону под ним ----------
-      // mix-blend-mode здесь не работает (см. комментарий в CSS-модуле про
-      // position:fixed и стекинг-контексты), поэтому читаем реальный пиксель
-      // сцены под каждым лейблом и переключаем цвет вручную. Читать напрямую
-      // из основного канваса (gl.readPixels) нельзя — рендерер создан с
-      // antialias:true, дефолтный буфer мультисемплирован, и синхронное
-      // чтение из него до имплицитного резолва отдаёт нули/мусор в реальных
-      // браузерах с настоящим GPU (в headless software-рендере это случайно
-      // "работало", поэтому баг не был виден в тестах). Поэтому рендерим
-      // сцену второй раз в отдельный НЕ мультисемплированный offscreen-таргет
-      // уменьшенного размера специально для замера — дороже одного кадра, но
-      // происходит лишь несколько раз в секунду, а не каждый кадр.
-      const PICK_SCALE = 0.25;
-      const pickTarget = new THREE.WebGLRenderTarget(1, 1);
-      const pixelBuf = new Uint8Array(4);
-      // Красим ПОБУКВЕННО, а не весь лейбл разом — каждая буква реагирует
-      // на то, что конкретно под ней (одно слово может наполовину лежать
-      // на стали, наполовину на чёрном фоне).
-      //
-      // charLensEls — свой .lens-канвас КАЖДОЙ буквы (для чтения через
-      // canvasLensPixel ниже, см. комментарий в sampleLabelColors про
-      // рассинхрон с линзой). Параллельный charEls массив, а не
-      // Map/индекс по heroLinks — сам .lens лежит ВНУТРИ той же <a>, что
-      // и буква, querySelector надёжнее любого предположения о порядке
-      // heroLinkRefs/heroLensRefs.
-      const charEls: HTMLSpanElement[] = [];
-      const charLensEls: (HTMLCanvasElement | null)[] = [];
-      heroLinks.forEach((a) => {
-        const lens = a.querySelector<HTMLCanvasElement>(`.${styles.lens}`);
-        [
-          ...Array.from(a.querySelectorAll<HTMLSpanElement>(`.${styles.numChar}`)),
-          ...Array.from(a.querySelectorAll<HTMLSpanElement>(`.${styles.lblChar}`)),
-        ].forEach((el) => {
-          charEls.push(el);
-          charLensEls.push(lens);
-        });
-      });
-      let colorSampleAcc = 0;
-      const COLOR_SAMPLE_INTERVAL = 1 / 8; // ~8 замеров в секунду
-
       function resize() {
         const w = window.innerWidth;
         const h = window.innerHeight;
         renderer.setSize(w, h, false);
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
-        pickTarget.setSize(Math.max(1, Math.round(w * PICK_SCALE)), Math.max(1, Math.round(h * PICK_SCALE)));
       }
       window.addEventListener("resize", resize);
       resize();
@@ -1010,295 +957,6 @@ export function SiteScene() {
       // было раньше) стопор всё так же спрятан за заставкой, поведение не
       // хуже прежнего.
       const warmupPromise = renderer.compileAsync(scene, camera).catch(() => {});
-
-      // Three.js применяет toneMapping/sRGB-гамму только к тому, что реально
-      // попадает на экран (канвас); произвольный WebGLRenderTarget получает
-      // "сырые" линейные значения — тот же самый видимый светлый пиксель
-      // читается из pickTarget заметно темнее, чем он выглядит на экране.
-      // Без этой поправки почти всё читалось бы как "тёмное".
-      function linearToSrgb8(v: number) {
-        const c = v / 255;
-        const s = c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
-        return Math.max(0, Math.min(255, s * 255));
-      }
-
-      // Кэш 2D-контекста каждого .lens-канваса — не вызывать getContext()
-      // заново на каждую букву/кадр (см. использование в sampleLabelColors).
-      const lensCtxCache = new Map<HTMLCanvasElement, CanvasRenderingContext2D | null>();
-      function getLensCtx(lens: HTMLCanvasElement): CanvasRenderingContext2D | null {
-        let ctx = lensCtxCache.get(lens);
-        if (ctx === undefined) {
-          ctx = lens.getContext("2d");
-          lensCtxCache.set(lens, ctx);
-        }
-        return ctx;
-      }
-
-      function sampleLabelColors() {
-        renderer.setRenderTarget(pickTarget);
-        renderer.render(scene, camera);
-        renderer.setRenderTarget(null);
-
-        const pw = pickTarget.width;
-        const ph = pickTarget.height;
-        charEls.forEach((el, i) => {
-          const r = el.getBoundingClientRect();
-          if (r.width === 0 && r.height === 0) return;
-          // Нормированные координаты (доля ширины/высоты окна) — не зависят
-          // от DPR и от того, что pickTarget меньше основного канваса.
-          const nx = (r.left + r.width / 2) / window.innerWidth;
-          const nyTop = (r.top + r.height / 2) / window.innerHeight;
-          const cx = Math.round(nx * pw);
-          const py = Math.round((1 - nyTop) * ph); // WebGL — координата Y снизу вверх
-          if (cx < 0 || cx >= pw || py < 0 || py >= ph) return;
-          renderer.readRenderTargetPixels(pickTarget, cx, py, 1, 1, pixelBuf);
-          const rawLum =
-            0.299 * linearToSrgb8(pixelBuf[0]) + 0.587 * linearToSrgb8(pixelBuf[1]) + 0.114 * linearToSrgb8(pixelBuf[2]);
-
-          // Буквы у скруглённых краёв длинных капсул (напр. "prețuri" в
-          // "Listă de prețuri") физически лежат внутри КОЛЬЦА линзы
-          // (drawLenses — LENS_RING/LENS_RIM_BAND у самого края капсулы) —
-          // человек там видит УВЕЛИЧЕННУЮ (zoom 1.22-2.6×) картинку линзы
-          // поверх исходной сцены, не сырой кадр. rawLum выше игнорирует
-          // это — сэмплит "как было бы без линзы", отсюда рассинхрон:
-          // алгоритм решал "светло → тёмный текст" по сырому пикселю,
-          // хотя реально под буквой было наложение блёклого серого кольца
-          // на чёрный фон, заметно темнее — тёмный текст на нём терялся
-          // (жалоба пользователя, 2026-08-21, капсула "Listă de prețuri").
-          //
-          // Фикс: читаем реальный пиксель ИЗ .lens-канваса (2D, уже
-          // содержит финальный, отображаемый кадр — линеаризация не
-          // нужна, в отличие от pickTarget выше) в ТОЙ ЖЕ точке и
-          // смешиваем с rawLum по alpha кольца — ровно то же alpha-
-          // компоузитинг, что браузер сам делает при отрисовке (кольцо
-          // рисуется НАД сценой, .heroNav a без backdrop-filter — то, что
-          // не закрыто кольцом, ВИДНО как есть, см. комментарий в
-          // site-scene.module.css у .heroNav). При alpha=0 (истинный
-          // прозрачный центр капсулы, вне кольца) blendedLum === rawLum.
-          let lum = rawLum;
-          const lens = charLensEls[i];
-          const lensCtx = lens && getLensCtx(lens);
-          if (lens && lensCtx && lens.width > 0 && lens.height > 0) {
-            const lr = lens.getBoundingClientRect();
-            if (lr.width > 0 && lr.height > 0) {
-              const lx = Math.round(((r.left + r.width / 2 - lr.left) / lr.width) * lens.width);
-              const ly = Math.round(((r.top + r.height / 2 - lr.top) / lr.height) * lens.height);
-              if (lx >= 0 && lx < lens.width && ly >= 0 && ly < lens.height) {
-                try {
-                  const px = lensCtx.getImageData(lx, ly, 1, 1).data;
-                  const alpha = px[3] / 255;
-                  if (alpha > 0) {
-                    const lensLum = 0.299 * px[0] + 0.587 * px[1] + 0.114 * px[2];
-                    lum = alpha * lensLum + (1 - alpha) * rawLum;
-                  }
-                } catch {
-                  // Канвас линзы временно нечитаем (0×0 в момент ресайза
-                  // и т.п.) — используем rawLum, не критично, следующий
-                  // замер через 1/8с всё поправит.
-                }
-              }
-            }
-          }
-          // Порог 55 (было раньше) выбирал тёмный текст СИЛЬНО раньше, чем
-          // тот реально становится контрастнее белого — из-за этого на
-          // среднё-тёмных тонах стали (~60-110 sRGB, самая частая зона:
-          // клинок затенён градиентом, замерено пиксель-сканом вдоль
-          // капсул меню) текст читался хуже, чем если бы остался белым
-          // ("теряется" — жалоба пользователя, 2026-08-21).
-          //
-          // Порог посчитан из реального WCAG-контраста (не на глаз):
-          // относительная линейная яркость текста #111319 ≈ 0.0066,
-          // контраст тёмного текста на фоне Lbg = (Lbg+0.05)/0.0566,
-          // контраст белого = 1.05/(Lbg+0.05) — точка их равенства (после
-          // обратной линеаризации в sRGB 0-255, ту же шкалу считает и
-          // lum ниже) ≈ 122. Ниже нее у белого текста контраст выше,
-          // выше — у тёмного. 120 — округление этой точки, не подгонка.
-          //
-          // Проверено пиксель-сканом (много оборотов клинка через
-          // синтетический свайп, ~2000 замеров под буквами): фон под
-          // текстом на стали реально лежит в 0 (чёрный) и 100-180
-          // (сталь), с плотным кластером как раз в 110-120 — по новому
-          // порогу это остаётся белым (было бы тёмным при 55), а
-          // отчётливые блики (150+) по-прежнему уходят в тёмный.
-          el.style.color = lum > 120 ? "#111319" : "#ffffff";
-        });
-      }
-
-      // ---------- линза liquid-glass в капсулах меню ----------
-      // У каждого пункта меню свой <canvas>-"глазок": каждый кадр (тот же
-      // rAF-такт, что и вращение клинка — см. вызов drawLenses() ниже,
-      // без троттлинга) забирает область РЕАЛЬНОЙ сцены прямо с основного
-      // канваса (drawImage между canvas-элементами — в отличие от
-      // gl.readPixels — сам делает implicit resolve мультисемплированного
-      // буфера, поэтому второй offscreen-таргет тут не нужен, pickTarget
-      // используется только для побуквенного цвета текста выше и остаётся
-      // на своём отдельном троттле — тому достаточно ~8 замеров/сек).
-      //
-      // Ориентир — референс с настоящей рефракцией (Apple Liquid Glass):
-      // край выпуклого стекла заметно "тянет" картинку сильнее, чем
-      // середина, плюс тонкая радужная/хроматическая обводка по кромке.
-      // Честная рефракция — это фрагментный шейдер (per-pixel displacement),
-      // тут вместо этого дешёвое приближение из двух слоёв drawImage разного
-      // зума (общий по всему кольцу + более сильный узкий слой у самого
-      // края — "bulge") плюс декоративный градиентный блик-обводка поверх.
-      const lensCtxs = lensCanvases.map((c) => c.getContext("2d"));
-      // rimPath/strokeGrad ниже зависят ТОЛЬКО от текущего размера канваса
-      // линзы (lens.width/height) — тот меняется лишь при ресайзе/реф-
-      // лоу капсулы, не каждый кадр. Раньше оба пересобирались заново на
-      // каждый вызов drawLenses() (до 60 раз/сек × до 4 линз) — чистый
-      // лишний CPU без единого визуального отличия, кэшируем по паре
-      // (width, height) и пересобираем только когда она реально меняется.
-      const lensPathCache: ({ w: number; h: number; rimPath: Path2D; strokeGrad: CanvasGradient } | null)[] =
-        lensCanvases.map(() => null);
-      const LENS_ZOOM = 1.22; // общее увеличение по всему кольцу
-      const LENS_RIM_ZOOM = 2.6; // усиленное увеличение в узкой полосе у самого края — "bulge"
-      // Искажение — только кольцом у самого края капсулы (толще видимой
-      // линии border, чтобы "толстое стекло" читалось), а не на всю кнопку:
-      // если линза покрывает весь текст, буквы перестают читаться, даже с
-      // побуквенной подгонкой чёрный/белый. Центр после "выкусывания"
-      // остаётся настоящим прозрачным стеклом — там снова виден
-      // неискажённый фон, как и было до линзы.
-      //
-      // Ширина кольца — ДОЛЯ радиуса капсулы (pillR ниже), а не фиксированные
-      // CSS px (было так раньше: LENS_RING=15/LENS_RIM_BAND=9/LENS_FEATHER=10).
-      // Баг с фикс. px: `.lbl` — `font-size: clamp(16px, 2.1vw, 22px)`, на
-      // мобильном шрифт упирается в нижнюю границу (16px), на десктопе — в
-      // верхнюю (22px) — капсула на мобильном физически МЕНЬШЕ (высота ~44px
-      // против ~49px, замерено), поэтому те же фиксированные 15px кольца
-      // занимали БОЛЬШУЮ долю капсулы — "рамка с искажением слишком толстая"
-      // на мобильном при визуально более тонкой на десктопе (жалоба
-      // пользователя, 2026-08-22). Доли ниже подобраны так, чтобы при
-      // текущем desktop-размере (pillR≈24.55px) кольцо давало РОВНО те же
-      // 15/9/10px, что и раньше (десктопный вид не должен был двигаться,
-      // пользователь его не жаловал) — на меньшей мобильной капсуле кольцо
-      // теперь пропорционально тоньше вместе с ней.
-      const LENS_RING_RATIO = 15 / 24.55; // ≈0.611 от pillR
-      const LENS_RIM_BAND_RATIO = 9 / 24.55; // ≈0.367 от pillR
-      // Резкая граница между кольцом-линзой и прозрачным центром была
-      // заметна как жёсткий шов. blur() на самой стирающей заливке
-      // (ниже) размывает именно край erasure в мягкий градиент — дешевле
-      // и надёжнее, чем городить отдельную radial-gradient маску под
-      // форму таблетки.
-      const LENS_FEATHER_RATIO = 10 / 24.55; // ≈0.407 от pillR
-      let lensDrawnStatic = false;
-
-      function drawLenses() {
-        if (!lensCanvases.length) return;
-        // Тот же isTouch, что и у главного рендерера выше — до 4 таких
-        // канвасов перерисовываются (drawImage + маска стирания + blur)
-        // КАЖДЫЙ кадр, тот же fill-rate-бюджет мобильного GPU, что и у
-        // самой сцены.
-        const dpr = Math.min(window.devicePixelRatio || 1, isTouch ? 1.5 : 2);
-        lensCanvases.forEach((lens, i) => {
-          const ctx = lensCtxs[i];
-          if (!ctx) return;
-          const r = lens.getBoundingClientRect();
-          if (r.width === 0 || r.height === 0) return;
-          // Пиксельный буфер канваса держим в реальном разрешении экрана
-          // (а не в CSS-пикселях) — иначе на Retina линза мылится.
-          const w = Math.max(1, Math.round(r.width * dpr));
-          const h = Math.max(1, Math.round(r.height * dpr));
-          if (lens.width !== w) lens.width = w;
-          if (lens.height !== h) lens.height = h;
-          const cx = (r.left + r.width / 2) * dpr;
-          const cy = (r.top + r.height / 2) * dpr;
-          const pillR = Math.min(lens.width, lens.height) / 2;
-          ctx.clearRect(0, 0, lens.width, lens.height);
-
-          // Слой 1 — общий зум по всей капсуле (то же, что было раньше).
-          const sw = (r.width / LENS_ZOOM) * dpr;
-          const sh = (r.height / LENS_ZOOM) * dpr;
-          try {
-            ctx.drawImage(canvas, cx - sw / 2, cy - sh / 2, sw, sh, 0, 0, lens.width, lens.height);
-          } catch {
-            // Капсула частично уехала за край экрана — пропускаем кадр,
-            // не критично при следующем обновлении через 1/6с.
-          }
-
-          // Слой 2 — "bulge": в узкой полосе у самого края рисуем ту же
-          // область с более сильным зумом поверх слоя 1. Клип строим одним
-          // Path2D из внешнего контура капсулы и внутреннего (уже с отступом
-          // LENS_RIM_BAND) через fillRule "evenodd" — так получаем кольцевую
-          // область без ручной геометрии дуг под форму "таблетки".
-          const rim = pillR * LENS_RIM_BAND_RATIO;
-          const rw = lens.width - rim * 2;
-          const rh = lens.height - rim * 2;
-          // rimPath и strokeGrad (ниже) зависят только от lens.width/height,
-          // который стабилен между кадрами (меняется лишь при ресайзе) —
-          // пересобираем их не на каждый вызов, а только когда размер
-          // реально поменялся, и переиспользуем кадр за кадром.
-          let cached = lensPathCache[i];
-          if (rw > 0 && rh > 0 && (!cached || cached.w !== lens.width || cached.h !== lens.height)) {
-            const rimPath = new Path2D();
-            rimPath.roundRect(0, 0, lens.width, lens.height, pillR);
-            rimPath.roundRect(rim, rim, rw, rh, Math.min(rw, rh) / 2);
-            const strokeGrad = ctx.createLinearGradient(0, 0, lens.width, lens.height);
-            strokeGrad.addColorStop(0, "rgba(200,236,255,0.85)");
-            strokeGrad.addColorStop(0.5, "rgba(255,255,255,0)");
-            strokeGrad.addColorStop(1, "rgba(255,196,150,0.6)");
-            cached = { w: lens.width, h: lens.height, rimPath, strokeGrad };
-            lensPathCache[i] = cached;
-          }
-          if (rw > 0 && rh > 0 && cached) {
-            const rsw = (r.width / LENS_RIM_ZOOM) * dpr;
-            const rsh = (r.height / LENS_RIM_ZOOM) * dpr;
-            ctx.save();
-            ctx.clip(cached.rimPath, "evenodd");
-            try {
-              ctx.drawImage(canvas, cx - rsw / 2, cy - rsh / 2, rsw, rsh, 0, 0, lens.width, lens.height);
-            } catch {
-              /* см. катч выше */
-            }
-            ctx.restore();
-          }
-
-          // Выкусываем центр, оставляя только кольцо у края видимым —
-          // destination-out стирает уже нарисованное независимо от формы
-          // капсулы (не круг, а вытянутая "таблетка"), поэтому не нужна
-          // отдельная math под radial-gradient маску под её пропорции.
-          const ring = pillR * LENS_RING_RATIO;
-          const feather = pillR * LENS_FEATHER_RATIO;
-          const iw = lens.width - ring * 2;
-          const ih = lens.height - ring * 2;
-          if (iw > 0 && ih > 0) {
-            ctx.save();
-            ctx.globalCompositeOperation = "destination-out";
-            ctx.filter = `blur(${feather}px)`;
-            ctx.beginPath();
-            ctx.roundRect(ring, ring, iw, ih, Math.min(ih, iw) / 2);
-            ctx.fill();
-            ctx.restore();
-          }
-
-          // Декоративная обводка-блик поверх кольца: диагональный градиент
-          // (холодный голубоватый блик сверху-слева → тёплый снизу-справа)
-          // — дешёвая имитация хроматической аберрации/переливов по кромке
-          // настоящего стекла, без честного разложения по RGB-каналам.
-          // Тот же градиент, что и в кэше выше (rw/rh>0 в любой реальной
-          // капсуле, так что cached.strokeGrad почти всегда уже есть; на
-          // случай вырожденного размера — фолбэк собирает разовый градиент
-          // на месте, ничего не теряя визуально).
-          ctx.save();
-          ctx.globalCompositeOperation = "screen";
-          ctx.globalAlpha = 0.5;
-          if (!cached) {
-            const oneOff = ctx.createLinearGradient(0, 0, lens.width, lens.height);
-            oneOff.addColorStop(0, "rgba(200,236,255,0.85)");
-            oneOff.addColorStop(0.5, "rgba(255,255,255,0)");
-            oneOff.addColorStop(1, "rgba(255,196,150,0.6)");
-            ctx.strokeStyle = oneOff;
-          } else {
-            ctx.strokeStyle = cached.strokeGrad;
-          }
-          ctx.lineWidth = Math.max(1, ring * 0.3);
-          ctx.filter = `blur(${feather * 0.5}px)`;
-          const inset = ring * 0.55;
-          ctx.beginPath();
-          ctx.roundRect(inset, inset, lens.width - inset * 2, lens.height - inset * 2, pillR - inset);
-          ctx.stroke();
-          ctx.restore();
-        });
-      }
 
       let last = performance.now();
       let rafId = 0;
@@ -1430,50 +1088,6 @@ export function SiteScene() {
           renderer.render(scene, camera);
         }
 
-        // Линза (drawLenses) — раньше гейтилась ТЕМ ЖЕ условием, что и
-        // sampleLabelColors() ниже (!navCollapsedRef.current, т.е. только
-        // вертикаль) — по прямой просьбе пользователя ("настоящее
-        // интерактивное стекло, реагирующее на задний фон") включаем её и
-        // в доке. sampleLabelColors() остаётся вертикаль-only осознанно —
-        // считает цвет ПОБУКВЕННО для num/lbl текста, которого в доке нет
-        // (там просто белая SVG-иконка, .navIcon {color:#fff} фиксирован).
-        // getBoundingClientRect() внутри drawLenses() каждый раз меряет
-        // АКТУАЛЬНОЕ положение канваса линзы — не зависит от того, докнуто
-        // меню или нет, работает одинаково в обоих раскладках без доп.
-        // веток.
-        //
-        // ВАЖЕН ПОРЯДОК: drawLenses() должна отработать ДО
-        // sampleLabelColors() в этом же кадре — sampleLabelColors читает
-        // пиксели ИЗ .lens-канвасов (см. её комментарий про кольцо линзы),
-        // и если бы порядок был обратный, читался бы кадр линзы,
-        // отставший на один тик (не критично при 8 замерах/сек, но незачем
-        // вносить лишний источник рассинхрона).
-        if ((heroMenu > 0 || navCollapsedRef.current) && !document.hidden) {
-          // prefers-reduced-motion: сцена и так не вращается (autoSpin/
-          // float гейтятся выше), поэтому линзу достаточно нарисовать один
-          // раз статично — она и не должна "устаревать". Иначе — каждый
-          // кадр, тем же rAF-тактом, что и вращение клинка (без троттлинга:
-          // при заметном bulge даже 1/6с давал видимый "рывок" по сравнению
-          // с плавным вращением рядом). Page Visibility API: на скрытой
-          // вкладке вообще не трогаем канвасы линз (document.hidden).
-          if (reduced) {
-            if (!lensDrawnStatic) {
-              lensDrawnStatic = true;
-              drawLenses();
-            }
-          } else {
-            drawLenses();
-          }
-        }
-
-        if (heroMenu > 0 && !navCollapsedRef.current) {
-          colorSampleAcc += dt;
-          if (colorSampleAcc >= COLOR_SAMPLE_INTERVAL) {
-            colorSampleAcc = 0;
-            sampleLabelColors();
-          }
-        }
-
         sceneReady = true;
         rafId = requestAnimationFrame(frame);
       }
@@ -1514,7 +1128,6 @@ export function SiteScene() {
           else mat?.dispose?.();
         });
         scene.environment?.dispose();
-        pickTarget.dispose();
         renderer.forceContextLoss();
         renderer.dispose();
       };
@@ -1617,19 +1230,6 @@ export function SiteScene() {
                 // виду всё время, пока её попап открыт (см. память проекта:
                 // раньше это читалось как "кнопка пропала из дока").
               >
-                <canvas
-                  ref={(el) => { heroLensRefs.current[i] = el; }}
-                  className={styles.lens}
-                  aria-hidden="true"
-                />
-                {/* Зерно поверх стекла — в вертикали ложится НАД .lens (canvas
-                    с живой сценой, z-index:-1), в доке НАД плоским tint'ом
-                    капсулы — единый слой для обоих состояний, а не два
-                    разных механизма (в доке зерно раньше сидело прямо в
-                    background капсулы фоновым слоем — это ломало вертикаль,
-                    т.к. .lens рисуется ПОВЕРХ background и просто перекрывал
-                    его). См. .grainOverlay в CSS. */}
-                <span className={styles.grainOverlay} aria-hidden="true" />
                 <span className={styles.num}>
                   {[...item.num].map((ch, ci) => (
                     <span key={ci} className={styles.numChar}>{ch}</span>
