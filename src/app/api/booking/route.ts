@@ -3,9 +3,17 @@ import { prisma } from "@/lib/prisma";
 import { localWeekday, zonedTimeToUtc } from "@/lib/shop-time";
 import { notifyAdminNewBooking } from "@/lib/telegram-bot";
 import { routing } from "@/i18n/routing";
+import {
+  BOOKING_LIMITS,
+  HONEYPOT_FIELD,
+  getClientIp,
+  ipRateLimited,
+  isOverlapViolation,
+  phoneHasTooManyActiveBookings,
+} from "@/lib/booking-guard";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const TIME_RE = /^\d{2}:\d{2}$/;
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number) {
   return aStart < bEnd && aEnd > bStart;
@@ -29,6 +37,8 @@ interface CreateBookingBody {
   /// Booking.locale в schema.prisma. Определяет язык последующих
   /// уведомлений о смене статуса (email, Telegram клиенту).
   locale?: string;
+  /// Скрытое поле-ловушка (см. HONEYPOT_FIELD) — у человека всегда пустое.
+  website?: string;
 }
 
 // Создание заявки на запись — публичный эндпоинт (без авторизации,
@@ -44,14 +54,34 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
   }
 
-  const { date, time, notes } = body;
+  // Ловушка заполнена — это бот. Отвечаем так же, как на успех (201 с
+  // правдоподобным id), но ничего не создаём и не шлём барберу: бот не
+  // должен понять, что его отсекли, и подстроиться.
+  if (typeof body[HONEYPOT_FIELD] === "string" && body[HONEYPOT_FIELD].trim() !== "") {
+    return NextResponse.json({ booking: { id: `c${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}` } }, { status: 201 });
+  }
+
+  if (ipRateLimited(getClientIp(request))) {
+    return NextResponse.json({ error: "too many requests" }, { status: 429 });
+  }
+
+  const { date, time } = body;
+  const notes = typeof body.notes === "string" ? body.notes : undefined;
   // Дубликаты (клиент дважды прислал один и тот же id — не должно
   // случаться штатно, но не доверяем клиенту) схлопываем через Set —
   // иначе одна и та же услуга посчиталась бы в сумме длительности/цены
   // дважды.
-  const serviceIds = [...new Set(body.serviceIds ?? [])];
-  const clientName = body.clientName?.trim();
-  const clientPhone = body.clientPhone?.trim();
+  const serviceIds = Array.isArray(body.serviceIds)
+    ? [...new Set(body.serviceIds.filter((id): id is string => typeof id === "string"))]
+    : [];
+  const clientName = typeof body.clientName === "string" ? body.clientName.trim() : undefined;
+  const clientPhone = typeof body.clientPhone === "string" ? body.clientPhone.trim() : undefined;
+
+  // Реальный клиент больше 10 услуг за один визит не выберет — а без
+  // потолка массив id уходил бы прямиком в SQL IN (...) любой длины.
+  if (serviceIds.length > 10) {
+    return NextResponse.json({ error: "too many services" }, { status: 400 });
+  }
 
   if (serviceIds.length === 0 || !date || !DATE_RE.test(date) || !time || !TIME_RE.test(time)) {
     return NextResponse.json(
@@ -68,9 +98,17 @@ export async function POST(request: Request) {
   if ((clientPhone.match(/\d/g)?.length ?? 0) < 6) {
     return NextResponse.json({ error: "clientPhone doesn't look like a phone number" }, { status: 400 });
   }
-  const clientEmail = body.clientEmail?.trim() || null;
+  const clientEmail = (typeof body.clientEmail === "string" ? body.clientEmail.trim() : "") || null;
   if (clientEmail && !EMAIL_RE.test(clientEmail)) {
     return NextResponse.json({ error: "clientEmail doesn't look like an email address" }, { status: 400 });
+  }
+  if (
+    clientName.length > BOOKING_LIMITS.clientName ||
+    clientPhone.length > BOOKING_LIMITS.clientPhone ||
+    (clientEmail?.length ?? 0) > BOOKING_LIMITS.clientEmail ||
+    (notes?.trim().length ?? 0) > BOOKING_LIMITS.notes
+  ) {
+    return NextResponse.json({ error: "field too long", limits: BOOKING_LIMITS }, { status: 400 });
   }
   // Не доверяем клиенту слепо (мог прислать что угодно/ничего) — любое
   // значение вне списка реальных локалей сайта тихо откатывается на
@@ -79,6 +117,10 @@ export async function POST(request: Request) {
   const locale = routing.locales.includes(body.locale as (typeof routing.locales)[number])
     ? (body.locale as (typeof routing.locales)[number])
     : routing.defaultLocale;
+
+  if (await phoneHasTooManyActiveBookings(clientPhone)) {
+    return NextResponse.json({ error: "too many active bookings for this phone" }, { status: 429 });
+  }
 
   const services = await prisma.service.findMany({ where: { id: { in: serviceIds }, active: true } });
   // Не просто "хотя бы одна нашлась" — ВСЕ переданные id обязаны
@@ -159,14 +201,20 @@ export async function POST(request: Request) {
         },
       },
     });
-  } catch {
-    // Prisma P2010/23P01 — сработал Booking_no_overlap: кто-то другой
-    // успел занять пересекающееся время между проверкой overlaps() выше
-    // и этой самой вставкой (гонка). Тот же ответ, что и для "быстрого"
-    // пути — клиенту всё равно, на каком именно уровне обнаружили
-    // конфликт, поведение формы (сброс времени + перезапрос сетки)
-    // одинаковое в обоих случаях.
-    return NextResponse.json({ error: "slot no longer available" }, { status: 409 });
+  } catch (err) {
+    // Сработал Booking_no_overlap: кто-то другой успел занять
+    // пересекающееся время между проверкой overlaps() выше и этой самой
+    // вставкой (гонка). Тот же ответ, что и для "быстрого" пути — клиенту
+    // всё равно, на каком уровне обнаружили конфликт, поведение формы
+    // (сброс времени + перезапрос сетки) одинаковое.
+    if (isOverlapViolation(err)) {
+      return NextResponse.json({ error: "slot no longer available" }, { status: 409 });
+    }
+    // Любая другая ошибка — реальный сбой (БД недоступна и т.п.), а не
+    // "время занято". Логируем и отдаём честный 500, иначе клиент зря
+    // перевыбирал бы время, а сбой не оставлял бы следа в логах Vercel.
+    console.error("[api/booking] booking.create failed", err);
+    return NextResponse.json({ error: "internal error" }, { status: 500 });
   }
 
   // Уведомление барберу в Telegram — best-effort, та же логика, что и

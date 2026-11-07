@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getInitDataFromRequest, requireAdmin } from "@/lib/telegram-auth";
 import { zonedTimeToUtc } from "@/lib/shop-time";
+import { isOverlapViolation } from "@/lib/booking-guard";
 
 // Список заявок для админки — новые/ожидающие первыми (барберу важнее
 // всего разобрать очередь PENDING), внутри каждого статуса — по времени
@@ -52,7 +53,7 @@ export async function GET(request: Request) {
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const TIME_RE = /^\d{2}:\d{2}$/;
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CREATE_STATUSES = ["PENDING", "CONFIRMED", "CANCELLED", "DONE"] as const;
 type CreateStatus = (typeof CREATE_STATUSES)[number];
@@ -165,12 +166,17 @@ export async function POST(request: Request) {
         },
       },
     });
-  } catch {
+  } catch (err) {
     // Booking_no_overlap (см. комментарий выше про constraint) — время
     // пересекается с уже существующей НЕ отменённой записью. Тот же
     // смысл 409, что и в публичном API: barbershop-level конфликт, а не
     // ошибка формы — барбер должен поправить время, а не поля.
-    return NextResponse.json({ error: "time overlaps with an existing booking" }, { status: 409 });
+    if (isOverlapViolation(err)) {
+      return NextResponse.json({ error: "time overlaps with an existing booking" }, { status: 409 });
+    }
+    // Любой другой сбой — не "время занято": логируем и честный 500.
+    console.error("[api/admin/bookings] booking.create failed", err);
+    return NextResponse.json({ error: "internal error" }, { status: 500 });
   }
 
   return NextResponse.json({ booking: { id: booking.id } }, { status: 201 });

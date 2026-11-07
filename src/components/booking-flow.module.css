@@ -399,3 +399,14 @@
   border-color: rgba(34, 158, 217, 0.8);
   outline: none;
 }
+
+/* Поле-ловушка для ботов (booking-flow.tsx) — вне экрана, не занимает
+   места в раскладке формы. */
+.honeypot {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}

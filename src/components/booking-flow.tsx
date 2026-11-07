@@ -10,6 +10,7 @@ import {
   type WorkingHoursRow,
 } from "@/lib/shop-time";
 import styles from "./booking-flow.module.css";
+import { BOOKING_LIMITS, HONEYPOT_FIELD } from "@/lib/booking-limits";
 
 interface MonthData {
   workingHours: WorkingHoursRow[];
@@ -99,6 +100,8 @@ export function BookingFlow() {
   const [clientPhone, setClientPhone] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [notes, setNotes] = useState("");
+  // Поле-ловушка для ботов (см. lib/booking-limits.ts) — у человека пустое.
+  const [honeypot, setHoneypot] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -254,6 +257,7 @@ export function BookingFlow() {
           clientEmail: clientEmail.trim() || undefined,
           notes,
           locale,
+          [HONEYPOT_FIELD]: honeypot,
         }),
       });
       if (!r.ok) {
@@ -271,6 +275,7 @@ export function BookingFlow() {
             .then((d: { slots: string[] }) => setSlots(d.slots));
           throw new Error(t("slotTaken"));
         }
+        if (r.status === 429) throw new Error(t("tooMany"));
         throw new Error(t("genericError"));
       }
       const created = (await r.json()) as { booking: { id: string } };
@@ -393,6 +398,7 @@ export function BookingFlow() {
                 value={clientName}
                 onChange={(e) => setClientName(e.target.value)}
                 autoComplete="name"
+                maxLength={BOOKING_LIMITS.clientName}
               />
               <input
                 className={styles.input}
@@ -402,6 +408,7 @@ export function BookingFlow() {
                 value={clientPhone}
                 onChange={(e) => setClientPhone(e.target.value)}
                 autoComplete="tel"
+                maxLength={BOOKING_LIMITS.clientPhone}
               />
               <input
                 className={styles.input}
@@ -410,6 +417,7 @@ export function BookingFlow() {
                 value={clientEmail}
                 onChange={(e) => setClientEmail(e.target.value)}
                 autoComplete="email"
+                maxLength={BOOKING_LIMITS.clientEmail}
               />
               <textarea
                 className={styles.textarea}
@@ -417,6 +425,20 @@ export function BookingFlow() {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
+                maxLength={BOOKING_LIMITS.notes}
+              />
+              {/* Ловушка для ботов: убрана за экран (не display:none — часть
+                  ботов такие поля пропускает), недоступна с клавиатуры и
+                  для скринридеров, автозаполнение отключено. */}
+              <input
+                className={styles.honeypot}
+                type="text"
+                name={HONEYPOT_FIELD}
+                tabIndex={-1}
+                autoComplete="off"
+                aria-hidden="true"
+                value={honeypot}
+                onChange={(e) => setHoneypot(e.target.value)}
               />
               {submitError && <p className={styles.mismatchNotice}>{submitError}</p>}
               <button type="submit" className={styles.continueBtn} disabled={submitting}>
