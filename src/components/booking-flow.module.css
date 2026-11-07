@@ -410,3 +410,28 @@
   opacity: 0;
   pointer-events: none;
 }
+
+/* Согласие на обработку персональных данных (GDPR) под полями формы. */
+.consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-family: var(--font-pt-sans-narrow), sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+}
+.consent input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: #d81f26;
+  cursor: pointer;
+}
+.consentLink {
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

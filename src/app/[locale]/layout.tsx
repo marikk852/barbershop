@@ -3,7 +3,7 @@ import { Bodoni_Moda, Barlow_Condensed, PT_Sans_Narrow } from "next/font/google"
 import { hasLocale, NextIntlClientProvider } from "next-intl";
 import { notFound } from "next/navigation";
 import { routing, type Locale } from "@/i18n/routing";
-import { SiteScene } from "@/components/site-scene";
+import { SceneGate } from "@/components/scene-gate";
 import { LocaleClientProvider } from "@/components/locale-client-provider";
 import "../globals.css";
 
@@ -93,7 +93,7 @@ export default async function LocaleLayout({ children, params }: Props) {
             в этом компоненте. */}
         <NextIntlClientProvider>
           <LocaleClientProvider initialLocale={locale} messages={allMessages}>
-            <SiteScene />
+            <SceneGate />
             {children}
           </LocaleClientProvider>
         </NextIntlClientProvider>

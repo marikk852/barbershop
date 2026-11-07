@@ -39,6 +39,9 @@ interface CreateBookingBody {
   locale?: string;
   /// Скрытое поле-ловушка (см. HONEYPOT_FIELD) — у человека всегда пустое.
   website?: string;
+  /// Согласие на обработку персональных данных (GDPR, чекбокс в форме со
+  /// ссылкой на /privacy). Без него заявку не принимаем.
+  consent?: boolean;
 }
 
 // Создание заявки на запись — публичный эндпоинт (без авторизации,
@@ -63,6 +66,14 @@ export async function POST(request: Request) {
 
   if (ipRateLimited(getClientIp(request))) {
     return NextResponse.json({ error: "too many requests" }, { status: 429 });
+  }
+
+  // GDPR: заявка принимается только с явным согласием. Отдельное поле
+  // времени согласия в БД не заводим — для заявок с сайта согласие
+  // обязательно, поэтому Booking.createdAt (source=SITE) и есть момент,
+  // когда клиент его дал.
+  if (body.consent !== true) {
+    return NextResponse.json({ error: "consent required" }, { status: 400 });
   }
 
   const { date, time } = body;

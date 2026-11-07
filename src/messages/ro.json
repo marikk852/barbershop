@@ -52,6 +52,7 @@
     "telegramLink": "Primește notificări în Telegram",
     "slotTaken": "Această oră tocmai a fost ocupată — alege alta din grila de mai sus.",
     "genericError": "Nu am putut trimite cererea — încearcă din nou.",
-    "tooMany": "Prea multe cereri la rând — încearcă mai târziu sau sună frizerul."
+    "tooMany": "Prea multe cereri la rând — încearcă mai târziu sau sună frizerul.",
+    "consent": "Sunt de acord cu prelucrarea datelor mele cu caracter personal pentru programare și pentru a fi contactat(ă), conform <link>Politicii de confidențialitate</link>."
   }
 }

@@ -11,6 +11,7 @@ import {
 } from "@/lib/shop-time";
 import styles from "./booking-flow.module.css";
 import { BOOKING_LIMITS, HONEYPOT_FIELD } from "@/lib/booking-limits";
+import { Link } from "@/i18n/navigation";
 
 interface MonthData {
   workingHours: WorkingHoursRow[];
@@ -102,6 +103,9 @@ export function BookingFlow() {
   const [notes, setNotes] = useState("");
   // Поле-ловушка для ботов (см. lib/booking-limits.ts) — у человека пустое.
   const [honeypot, setHoneypot] = useState("");
+  // Согласие на обработку персональных данных (GDPR) — обязательное,
+  // по умолчанию НЕ отмечено (согласие должно быть активным действием).
+  const [consent, setConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -258,6 +262,7 @@ export function BookingFlow() {
           notes,
           locale,
           [HONEYPOT_FIELD]: honeypot,
+          consent,
         }),
       });
       if (!r.ok) {
@@ -440,8 +445,25 @@ export function BookingFlow() {
                 value={honeypot}
                 onChange={(e) => setHoneypot(e.target.value)}
               />
+              <label className={styles.consent}>
+                <input
+                  type="checkbox"
+                  required
+                  checked={consent}
+                  onChange={(e) => setConsent(e.target.checked)}
+                />
+                <span>
+                  {t.rich("consent", {
+                    link: (chunks) => (
+                      <Link href="/privacy" target="_blank" rel="noopener" className={styles.consentLink}>
+                        {chunks}
+                      </Link>
+                    ),
+                  })}
+                </span>
+              </label>
               {submitError && <p className={styles.mismatchNotice}>{submitError}</p>}
-              <button type="submit" className={styles.continueBtn} disabled={submitting}>
+              <button type="submit" className={styles.continueBtn} disabled={submitting || !consent}>
                 {submitting ? t("submitting") : t("submit")}
               </button>
             </form>
