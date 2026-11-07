@@ -17,9 +17,9 @@
     "@prisma/client": "^7.9.1",
     "@vercel/blob": "^2.7.0",
     "dotenv": "^17.4.2",
-    "next": "16.2.12",
+    "next": "^16.4.5",
     "next-intl": "^4.13.4",
-    "nodemailer": "^9.0.5",
+    "nodemailer": "^10.3.1",
     "pg": "^8.22.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -34,10 +34,14 @@
     "@types/react-dom": "^19",
     "@types/three": "^0.185.3",
     "eslint": "^9",
-    "eslint-config-next": "16.2.12",
+    "eslint-config-next": "^16.4.5",
     "prisma": "^7.9.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.1",
     "typescript": "^5"
+  },
+  "overrides": {
+    "zod": "^4.6.7",
+    "@vercel/cli-config": "^0.3.7"
   }
 }

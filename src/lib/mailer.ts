@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
 
 const GMAIL_USER = process.env.GMAIL_USER;
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
@@ -7,9 +7,9 @@ const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
 // запросы serverless-функции (пока она "тёплая") — createTransport на
 // каждое письмо не нужен, объект лёгкий и просто хранит конфигурацию
 // SMTP-соединения.
-let transporter: nodemailer.Transporter | null | undefined;
+let transporter: Transporter | null | undefined;
 
-function getTransporter(): nodemailer.Transporter | null {
+function getTransporter(): Transporter | null {
   if (transporter !== undefined) return transporter;
   if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
     transporter = null;
