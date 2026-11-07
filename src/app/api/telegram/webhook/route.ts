@@ -2,15 +2,15 @@ import { NextResponse } from "next/server";
 import { sendBookingNotifications, updateBookingStatus } from "@/lib/booking-status";
 import { prisma } from "@/lib/prisma";
 import { answerCallbackQuery, sendTelegramLinkedConfirmation } from "@/lib/telegram-bot";
+import { isActiveAdminTelegramUser } from "@/lib/telegram-auth";
 
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
-const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID;
 
 interface TelegramUpdate {
   callback_query?: {
     id: string;
     data?: string;
-    from: { id: number };
+    from: { id: number; username?: string; first_name?: string; last_name?: string };
   };
   message?: {
     text?: string;
@@ -22,8 +22,8 @@ interface TelegramUpdate {
 // типу апдейта:
 //  1. callback_query — барбер нажал "Подтвердить"/"Отклонить" под
 //     уведомлением о новой записи (см. notifyAdminNewBooking). Разрешено
-//     ТОЛЬКО от ADMIN_TELEGRAM_ID — в остальном это тот же путь, что и
-//     кнопки в админке (applyBookingStatus).
+//     владельцу И активным админам из /admin/users — те же права, что на
+//     кнопках в админке (isActiveAdminTelegramUser ≡ requireAdmin).
 //  2. message с текстом "/start <bookingId>" — клиент прошёл по ссылке
 //     "Получать уведомления в Telegram" с экрана успеха записи (deep
 //     link t.me/<bot>?start=<id>) и запустил бота. Разрешено от ЛЮБОГО
@@ -57,11 +57,11 @@ export async function POST(request: Request) {
 }
 
 async function handleCallbackQuery(cq: NonNullable<TelegramUpdate["callback_query"]>) {
-  const isAdmin = ADMIN_TELEGRAM_ID && String(cq.from.id) === ADMIN_TELEGRAM_ID;
+  const isAdmin = await isActiveAdminTelegramUser(cq.from);
   if (!isAdmin) {
-    // Не барбер — например, кто-то переслал скриншот с кнопкой и решил
-    // нажать. Молча отказываем, без деталей в тексте (не подсказываем
-    // структуру callback_data потенциальному атакующему).
+    // Не владелец и не активный админ — например, посторонний участник
+    // группы. Отказываем без деталей в тексте (не подсказываем структуру
+    // callback_data потенциальному атакующему).
     await answerCallbackQuery(cq.id, "Недоступно");
     return;
   }

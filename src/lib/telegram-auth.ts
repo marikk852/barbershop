@@ -141,6 +141,47 @@ export async function requireAdmin(initData: string | null): Promise<VerifyResul
   return result;
 }
 
+// Те же права, что у requireAdmin(), но для кнопок "Подтвердить/Отклонить"
+// под уведомлением о заявке в Telegram-группе (/api/telegram/webhook). Там
+// нет initData — пользователя идентифицирует сам Telegram (callback_query.
+// from), подлинность апдейта гарантирует секрет вебхука. Раньше кнопки
+// пускали ТОЛЬКО владельца (ADMIN_TELEGRAM_ID) — выданные им админы
+// (AdminUser.status=ACTIVE) в группе получали "Недоступно", хотя в
+// админке те же действия им разрешены.
+//
+// Тот же порядок, что в requireAdmin():
+//  1. владелец — всегда;
+//  2. ACTIVE-запись по telegramId;
+//  3. доступ, выданный заранее по нику (telegramId ещё null — человек ни
+//     разу не открывал админку): привязываем telegramId по совпавшему
+//     username и проверяем статус.
+// В отличие от requireAdmin(), НЕ заводим PENDING-записи на каждого, кто
+// нажал кнопку в группе, — в группе могут быть и посторонние участники.
+export async function isActiveAdminTelegramUser(from: {
+  id: number;
+  username?: string;
+  first_name?: string;
+  last_name?: string;
+}): Promise<boolean> {
+  const ownerId = process.env.ADMIN_TELEGRAM_ID;
+  const telegramId = String(from.id);
+  if (ownerId && telegramId === ownerId) return true;
+
+  const byId = await prisma.adminUser.findUnique({ where: { telegramId } });
+  if (byId) return byId.status === "ACTIVE";
+
+  if (!from.username) return false;
+  const claim = await prisma.adminUser.findFirst({
+    where: { telegramId: null, username: { equals: from.username, mode: "insensitive" } },
+  });
+  if (!claim) return false;
+  const bound = await prisma.adminUser.update({
+    where: { id: claim.id },
+    data: { telegramId, firstName: from.first_name ?? null, lastName: from.last_name ?? null },
+  });
+  return bound.status === "ACTIVE";
+}
+
 // Более узкая проверка для /api/admin/users/* — управлять списком
 // допущенных аккаунтов может ТОЛЬКО владелец (иначе выданный доступ
 // админ мог бы сам себе выдать больше прав или отозвать доступ у
