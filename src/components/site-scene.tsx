@@ -60,13 +60,78 @@ function ptsShape(pts: [number, number][]) {
   s.autoClose = true;
   return s;
 }
+
+// ОБА КОНЦА ЛЕЗВИЯ — гладкие (2026-11-07, по просьбе пользователя).
+// BLADE_PTS/HOOK_PTS сняты с фото ломаной: на скруглённом носу клинка и
+// на изогнутом хвостовике точки шли "зубцами" (местами даже назад, напр.
+// [-0.287,-3.586] на носу, 0.224→0.236→0.227→0.236 на ободе хвостовика),
+// и на крупном плане эти участки читались как грубые грани — MSAA тут не
+// помогает, ломаная в самой модели. Эти два участка заменены сплайном
+// (Catmull-Rom через splineThru) по очищенным опорным точкам той же
+// формы; остальной контур (спинка, плечо, кромка) — прежняя ломаная.
+type Pt = [number, number];
+type ShapePart = { line: Pt[] } | { spline: Pt[] };
+function partsShape(parts: ShapePart[]) {
+  const s = new THREE.Shape();
+  let started = false;
+  for (const part of parts) {
+    if ("line" in part) {
+      for (const [x, y] of part.line) {
+        if (!started) {
+          s.moveTo(x, y);
+          started = true;
+        } else s.lineTo(x, y);
+      }
+    } else {
+      // Первая точка сплайна — текущая позиция пути (конец предыдущей
+      // части), сам splineThru стартует из неё.
+      s.splineThru(part.spline.map(([x, y]) => new THREE.Vector2(x, y)));
+    }
+  }
+  s.autoClose = true;
+  return s;
+}
+
+// Нос клинка: от спинки ([-0.33,-3.487], индекс 4 в BLADE_PTS) до начала
+// режущей кромки ([0.301,-2.232], индекс 16) — одна плавная дуга. Последние
+// точки уводят касательную вверх, чтобы дуга без излома переходила в
+// почти вертикальную кромку.
+const BLADE_TIP_SPLINE: Pt[] = [
+  [-0.326, -3.55], [-0.298, -3.618], [-0.235, -3.676], [-0.14, -3.712], [-0.04, -3.72],
+  [0.07, -3.698], [0.16, -3.648], [0.222, -3.582], [0.25, -3.5], [0.264, -3.38],
+];
+function makeBladeShape() {
+  return partsShape([
+    { line: BLADE_PTS.slice(0, 5) },
+    { spline: BLADE_TIP_SPLINE },
+    { line: BLADE_PTS.slice(16) },
+  ]);
+}
+
+// Хвостовик: основание (прячется в шарнире) — прямыми, весь изогнутый
+// "крючок" — одним сплайном: внешний обод → скруглённый кончик →
+// внутренний край обратно к основанию.
+const HOOK_SPLINE: Pt[] = [
+  [0.226, 0.25], [0.231, 0.4], [0.227, 0.55], [0.214, 0.68], [0.186, 0.79], [0.146, 0.888],
+  [0.104, 0.957], [0.07, 0.985], [0.035, 0.977], [0.014, 0.94], [0.024, 0.83], [0.048, 0.7],
+  [0.052, 0.58], [0.044, 0.46], [0.024, 0.37], [-0.012, 0.29], [-0.055, 0.211],
+];
+function makeHookShape() {
+  return partsShape([
+    { line: HOOK_PTS.slice(0, 3) },
+    { spline: HOOK_SPLINE },
+  ]);
+}
+
+// Сплайн дробится на curveSegments × число его точек — 8 из EX_BLADE даёт
+// ~80-140 вершин на конец, этого хватает для гладкой дуги на весь экран.
 function makeBladeBody() {
-  const g = new THREE.ExtrudeGeometry(ptsShape(BLADE_PTS), EX_BLADE);
+  const g = new THREE.ExtrudeGeometry(makeBladeShape(), EX_BLADE);
   g.translate(0, 0, -0.025);
   return g;
 }
 function makeHook() {
-  const g = new THREE.ExtrudeGeometry(ptsShape(HOOK_PTS), EX_BLADE);
+  const g = new THREE.ExtrudeGeometry(makeHookShape(), EX_BLADE);
   g.translate(0, 0, -0.024);
   return g;
 }
