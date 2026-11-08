@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" rx="225.28" fill="#d81f26"/>
+  <g transform="translate(133.12 299.8272) scale(0.75776) translate(0 -40)">
+  <path d="M11.3 80 L179.3 560 L278.3 560 L392 303.5 L505.7 560 L604.7 560 L772.7 80 L675.3 80 L551 435.1 L393.6 80 L390.4 80 L233 435.1 L108.7 80 Z" fill="#0b0b0d"/>
+  <rect x="678" y="80" width="92" height="480" fill="#0b0b0d"/>
+  <line x1="724" y1="126" x2="724" y2="514" stroke="#d81f26" stroke-width="9" stroke-linecap="round"/>
+  <g transform="translate(748 330) rotate(49)">
+    <rect x="0" y="-29" width="286" height="58" rx="29" fill="#0b0b0d"/>
+  </g>
+  <g transform="translate(748 330) rotate(-55)">
+    <path d="M-8 -33 L272 -44 C300 -45 318 -30 318 -6 L322 50 L84 50 C58 50 44 30 22 28 L-8 28 Z" fill="#f4f6f8"/>
+    <path d="M64 12 L300 9" fill="none" stroke="#d81f26" stroke-width="5" stroke-linecap="round"/>
+    <path d="M92 50 L322 50 L319.6 33 L106 39 Z" fill="#0b0b0d"/>
+  </g>
+  <circle cx="748" cy="330" r="36" fill="#d81f26"/>
+  <circle cx="748" cy="330" r="24" fill="#f4f6f8"/>
+  </g>
+</svg>

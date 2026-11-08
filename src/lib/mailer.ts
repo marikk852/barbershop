@@ -75,8 +75,18 @@ export async function sendBookingStatusEmail(
   const dt = formatDateTime(data.startsAt, data.locale);
   const serviceName = data.locale === "ro" ? data.serviceNameRo : data.serviceNameRu;
 
+  // Логотип WK — PNG (SVG почтовые клиенты, в т.ч. Gmail, не показывают),
+  // абсолютным URL на сайт. Адрес сайта: SITE_URL, иначе системная
+  // переменная Vercel с прод-доменом; если нет ни того ни другого
+  // (локальная разработка) — письмо просто без картинки.
+  const site = process.env.SITE_URL ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null);
+  const logo = site
+    ? `<img src="${site.replace(/\/$/, "")}/brand/wk-email.png" width="48" height="48" alt="WK" style="display: block; border-radius: 11px; margin-bottom: 10px;" />`
+    : "";
+
   const html = `
     <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; color: #1a1a1a;">
+      ${logo}
       <h2 style="color: #d81f26; margin-bottom: 4px;">W Condrea Barber</h2>
       <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;" />
 

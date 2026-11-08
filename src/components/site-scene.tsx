@@ -13,6 +13,7 @@ import { PriceFlow } from "@/components/price-flow";
 import { PortfolioFlow } from "@/components/portfolio-flow";
 import { BookingIcon, BioIcon, PriceIcon, PortfolioIcon } from "@/components/nav-icons";
 import styles from "./site-scene.module.css";
+import { WK } from "@/components/wk-logo-geometry";
 
 const NAV_ITEMS = [
   { num: "01", key: "booking", href: "/booking", Icon: BookingIcon, dockOrder: 3 },
@@ -146,12 +147,48 @@ function makeScale() {
   return g;
 }
 
-const STROKES = [
-  { d: "M336 433 L456 807", grad: "swg1", dur: 0.44, start: 0.18 },
-  { d: "M456 807 L636 491", grad: "swg2", dur: 0.41, start: 0.56 },
-  { d: "M636 491 L796 806", grad: "swg3", dur: 0.4, start: 0.91 },
-  { d: "M796 806 L936 433", grad: "swg4", dur: 0.45, start: 1.25 },
+// Логотип WK в заставке: W "прорезается" штрихами (cut + heat + spark),
+// затем рукоять шаветты (= стойка K), после чего лезвие и хвостовик
+// раскрываются вокруг оси. Геометрия — из scripts/brand/build-logo.mjs
+// (тот же источник, что у статичных SVG/иконок в public/brand).
+// Штрихи идут по осевой линии W с запасом за концами и шире самой буквы —
+// clipPath #wkClip (точный контур W + рукоять) обрезает их до формы знака.
+const WK_EXT = 70;
+function wkExtend(a: readonly number[], b: readonly number[], atStart: boolean, atEnd: boolean) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy);
+  const ux = (dx / L) * WK_EXT, uy = (dy / L) * WK_EXT;
+  const s = atStart ? [a[0] - ux, a[1] - uy] : a;
+  const e = atEnd ? [b[0] + ux, b[1] + uy] : [b[0] + ux * 0.6, b[1] + uy * 0.6];
+  return `M${s[0]} ${s[1]} L${e[0]} ${e[1]}`;
+}
+const WK_TIMES = [
+  { dur: 0.36, start: 0.18 },
+  { dur: 0.34, start: 0.5 },
+  { dur: 0.34, start: 0.8 },
+  { dur: 0.36, start: 1.1 },
 ];
+const STROKES = [
+  ...WK.W_PTS.slice(0, -1).map((p, i) => ({
+    d: wkExtend(p, WK.W_PTS[i + 1], i === 0, true),
+    ...WK_TIMES[i],
+  })),
+  // рукоять — сверху вниз
+  { d: `M${WK.HANDLE.x + WK.HANDLE.w / 2} ${WK.TOP - WK_EXT} L${WK.HANDLE.x + WK.HANDLE.w / 2} ${WK.BASE + WK_EXT}`, dur: 0.3, start: 1.42 },
+];
+const WK_PIVOT_ORIGIN = `transform-origin:${WK.PIVOT[0]}px ${WK.PIVOT[1]}px`;
+function wkKParts(plain: boolean) {
+  const [px, py] = WK.PIVOT;
+  const hx = WK.HANDLE.x + WK.HANDLE.w / 2;
+  const fill = (g: string) => (plain ? "#fff" : `url(#${g})`);
+  const tang = `<g transform="translate(${px} ${py}) rotate(${WK.TANG.angle})"><rect x="0" y="${-WK.TANG.h / 2}" width="${WK.TANG.len}" height="${WK.TANG.h}" rx="${WK.TANG.h / 2}" fill="${fill("wkTang")}"/></g>`;
+  const blade = `<g transform="translate(${px} ${py}) rotate(${WK.BLADE.angle})"><path d="${WK.BLADE.body}" fill="${fill("wkBlade")}"/>${
+    plain ? "" : `<path d="${WK.BLADE.seam}" fill="none" stroke="#08090b" stroke-width="5" stroke-linecap="round"/><path class="${styles.wkBevel}" d="${WK.BLADE.bevel}" fill="#e02128"/>`
+  }</g>`;
+  return `${plain ? "" : `<line class="${styles.wkSeam}" x1="${hx}" y1="${WK.TOP + 46}" x2="${hx}" y2="${WK.BASE - 46}" stroke="#08090b" stroke-width="9" stroke-linecap="round"/>`}
+    <g class="${styles.wkTang}" style="${WK_PIVOT_ORIGIN}">${tang}</g>
+    <g class="${styles.wkBlade}" style="${WK_PIVOT_ORIGIN}">${blade}</g>
+    <g class="${styles.wkPivot}" style="${WK_PIVOT_ORIGIN}"><circle cx="${px}" cy="${py}" r="36" fill="#08090b"/><circle cx="${px}" cy="${py}" r="24" fill="${plain ? "#fff" : "#e02128"}"/></g>`;
+}
 
 export function SiteScene() {
   const t = useTranslations("Home");
@@ -663,14 +700,19 @@ export function SiteScene() {
     // ---------- заставка ----------
     function buildMark(el: SVGSVGElement | null, plain: boolean) {
       if (!el) return;
-      el.innerHTML = STROKES.map((s) => {
-        const v = `--d:${s.dur}s;--s:${s.start}s`;
-        return plain
-          ? `<path class="${styles.cut}" d="${s.d}" stroke="#fff" pathLength="1" style="${v}"/>`
-          : `<path class="${styles.cut}" d="${s.d}" stroke="url(#${s.grad})" filter="url(#sShadow)" pathLength="1" style="${v}"/>
-             <path class="${styles.heat}" d="${s.d}" pathLength="1" style="${v}"/>
-             <path class="${styles.spark}" d="${s.d}" pathLength="1" style="${v}"/>`;
-      }).join("");
+      const v = (s: { dur: number; start: number }) => `--d:${s.dur}s;--s:${s.start}s`;
+      const cuts = STROKES.map((s) =>
+        `<path class="${styles.cut}" d="${s.d}" stroke="${plain ? "#fff" : "url(#wkSteel)"}" pathLength="1" style="${v(s)}"/>`,
+      ).join("");
+      if (plain) {
+        el.innerHTML = `<g opacity=".85" filter="url(#sSoften)"><g clip-path="url(#wkClip)">${cuts}</g>${wkKParts(true)}</g>`;
+        return;
+      }
+      const fx = STROKES.map((s) =>
+        `<path class="${styles.heat}" d="${s.d}" pathLength="1" style="${v(s)}"/>
+         <path class="${styles.spark}" d="${s.d}" pathLength="1" style="${v(s)}"/>`,
+      ).join("");
+      el.innerHTML = `<g filter="url(#sShadow)"><g clip-path="url(#wkClip)">${cuts}</g>${wkKParts(false)}</g>${fx}`;
     }
 
     function reveal() {
@@ -1219,26 +1261,27 @@ export function SiteScene() {
       <div ref={wrapRef} className={styles.glWrap}>
         <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
           <defs>
-            <linearGradient id="swg1" gradientUnits="userSpaceOnUse" x1="336" y1="353" x2="456" y2="887">
-              <stop offset="0" stopColor="#ffffff" /><stop offset=".075" stopColor="#fefefe" /><stop offset=".5" stopColor="#838383" /><stop offset=".915" stopColor="#464646" /><stop offset="1" stopColor="#3a3a3a" />
+            <linearGradient id="wkSteel" gradientUnits="userSpaceOnUse" x1="0" y1="40" x2="0" y2="620">
+              <stop offset="0" stopColor="#ffffff" /><stop offset=".08" stopColor="#f2f2f2" /><stop offset=".5" stopColor="#868686" /><stop offset=".92" stopColor="#4a4a4a" /><stop offset="1" stopColor="#3c3c3c" />
             </linearGradient>
-            <linearGradient id="swg2" gradientUnits="userSpaceOnUse" x1="636" y1="411" x2="456" y2="887">
-              <stop offset="0" stopColor="#f6f6f6" /><stop offset=".08" stopColor="#eeeeee" /><stop offset=".5" stopColor="#7d7d7d" /><stop offset=".92" stopColor="#454545" /><stop offset="1" stopColor="#3a3a3a" />
+            <linearGradient id="wkBlade" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stopColor="#8d9095" /><stop offset=".45" stopColor="#e6e8eb" /><stop offset="1" stopColor="#ffffff" />
             </linearGradient>
-            <linearGradient id="swg3" gradientUnits="userSpaceOnUse" x1="636" y1="411" x2="796" y2="886">
-              <stop offset="0" stopColor="#f6f6f6" /><stop offset=".08" stopColor="#eeeeee" /><stop offset=".5" stopColor="#7f7f7f" /><stop offset=".92" stopColor="#474747" /><stop offset="1" stopColor="#3c3c3c" />
+            <linearGradient id="wkTang" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stopColor="#9a9da2" /><stop offset="1" stopColor="#4a4c50" />
             </linearGradient>
-            <linearGradient id="swg4" gradientUnits="userSpaceOnUse" x1="936" y1="353" x2="796" y2="886">
-              <stop offset="0" stopColor="#ffffff" /><stop offset=".075" stopColor="#fefefe" /><stop offset=".5" stopColor="#878787" /><stop offset=".92" stopColor="#535353" /><stop offset="1" stopColor="#464646" />
-            </linearGradient>
-            <filter id="sShadow" filterUnits="userSpaceOnUse" x="156" y="253" width="954" height="734">
+            <clipPath id="wkClip">
+              <path d={WK.W_OUTLINE} />
+              <rect x={WK.HANDLE.x} y={WK.TOP} width={WK.HANDLE.w} height={WK.BASE - WK.TOP} />
+            </clipPath>
+            <filter id="sShadow" filterUnits="userSpaceOnUse" x="-80" y="-60" width="1160" height="760">
               <feDropShadow dx="0" dy="6" stdDeviation="16" floodColor="#000" floodOpacity=".55" />
             </filter>
-            <filter id="sGlow" filterUnits="userSpaceOnUse" x="156" y="253" width="954" height="734">
+            <filter id="sGlow" filterUnits="userSpaceOnUse" x="-80" y="-60" width="1160" height="760">
               <feGaussianBlur stdDeviation="26" result="b" />
               <feMerge><feMergeNode in="b" /><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
             </filter>
-            <filter id="sSoften" filterUnits="userSpaceOnUse" x="156" y="253" width="954" height="734">
+            <filter id="sSoften" filterUnits="userSpaceOnUse" x="-80" y="-60" width="1160" height="760">
               <feGaussianBlur stdDeviation="7" />
             </filter>
           </defs>
@@ -1252,9 +1295,9 @@ export function SiteScene() {
           <div className={styles.grain} />
           <div className={styles.lockup}>
             <div className={styles.markwrap}>
-              <svg ref={markMainRef} className={styles.mark} viewBox="196 293 874 654" role="img" aria-label="W" />
+              <svg ref={markMainRef} className={styles.mark} viewBox="0 0 1000 640" role="img" aria-label="WK" />
               <div className={styles.sweep}>
-                <svg ref={markSweepRef} className={styles.mark} viewBox="196 293 874 654" aria-hidden="true" />
+                <svg ref={markSweepRef} className={styles.mark} viewBox="0 0 1000 640" aria-hidden="true" />
               </div>
             </div>
             <div className={styles.rule} />

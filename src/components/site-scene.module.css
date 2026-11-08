@@ -548,10 +548,11 @@
   --red: #e02128;
   --red-lo: #8f1418;
   --steelC: #f4f6f8;
-  --t-sweep: 1.7s;
-  --t-rule: 1.85s;
-  --t-word: 2s;
-  --t-sub: 2.55s;
+  --t-open: 1.7s;
+  --t-sweep: 2.25s;
+  --t-rule: 2.4s;
+  --t-word: 2.55s;
+  --t-sub: 3.1s;
   background: radial-gradient(90% 65% at 50% 22%, #16181c 0%, transparent 62%),
     radial-gradient(120% 100% at 50% 55%, #0c0d10 0%, #050506 70%);
 }
@@ -595,8 +596,8 @@
 }
 .markwrap {
   position: relative;
-  width: min(30vw, 260px);
-  aspect-ratio: 874 / 654;
+  width: min(44vw, 340px);
+  aspect-ratio: 1000 / 640;
   transform: scale(1.018);
   animation: sSettle 1.1s cubic-bezier(0.16, 1, 0.3, 1) var(--t-sweep) forwards;
 }
@@ -610,10 +611,44 @@
   height: 100%;
   overflow: visible;
 }
-.mark path {
+.mark .cut {
   fill: none;
-  stroke-width: 160;
-  stroke-linecap: round;
+  stroke-width: 150;
+  stroke-linecap: butt;
+}
+/* K-шаветта: рукоять уже прорезана штрихом, лезвие и хвостовик
+   раскрываются вокруг оси (transform-origin задан inline = WK.PIVOT, в
+   координатах viewBox — поэтому transform-box: view-box). */
+.wkBlade, .wkTang, .wkPivot {
+  transform-box: view-box;
+  opacity: 0;
+}
+.wkBlade {
+  transform: rotate(-35deg);
+  animation: sOpen 0.62s cubic-bezier(0.22, 1.35, 0.4, 1) var(--t-open) forwards;
+}
+.wkTang {
+  transform: rotate(41deg);
+  animation: sOpen 0.62s cubic-bezier(0.22, 1.35, 0.4, 1) calc(var(--t-open) + 0.04s) forwards;
+}
+@keyframes sOpen {
+  0% { opacity: 0; }
+  18% { opacity: 1; }
+  100% { opacity: 1; transform: rotate(0deg); }
+}
+.wkPivot {
+  transform: scale(0);
+  animation: sPop 0.38s cubic-bezier(0.3, 1.6, 0.5, 1) calc(var(--t-open) + 0.3s) forwards;
+}
+@keyframes sPop {
+  to { opacity: 1; transform: scale(1); }
+}
+.wkSeam, .wkBevel {
+  opacity: 0;
+  animation: sFadeIn 0.4s ease-out calc(var(--t-open) + 0.35s) forwards;
+}
+@keyframes sFadeIn {
+  to { opacity: 1; }
 }
 .rule {
   width: min(26vw, 220px);
@@ -680,7 +715,7 @@
 }
 .heat {
   stroke: #fff;
-  stroke-width: 150;
+  stroke-width: 100;
   opacity: 0.3;
   stroke-dasharray: 1 2;
   stroke-dashoffset: 1.02;
@@ -724,11 +759,6 @@
   -webkit-mask-position: 180% 0;
   mask-position: 180% 0;
   animation: sSweep 0.95s cubic-bezier(0.45, 0, 0.25, 1) var(--t-sweep) forwards;
-}
-.sweep .mark path {
-  stroke: #fff;
-  opacity: 0.85;
-  filter: url(#sSoften);
 }
 @keyframes sSweep {
   to { -webkit-mask-position: -140% 0; mask-position: -140% 0; }
@@ -888,6 +918,7 @@
   .grain, .splash::after { animation: none; }
   .heat, .spark, .sweep { display: none; }
   .cut { stroke-dashoffset: 0; animation: none; }
+  .wkBlade, .wkTang, .wkPivot, .wkSeam, .wkBevel { opacity: 1; transform: none; animation: none; }
   .rule { transform: scaleX(1); opacity: 0.85; animation: none; }
   .markwrap { transform: scale(1); animation: none; }
   .word span { opacity: 1; transform: none; filter: none; animation: none; }
