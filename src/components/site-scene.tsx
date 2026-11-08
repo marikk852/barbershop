@@ -147,47 +147,69 @@ function makeScale() {
   return g;
 }
 
-// Логотип WK в заставке: W "прорезается" штрихами (cut + heat + spark),
-// затем рукоять шаветты (= стойка K), после чего лезвие и хвостовик
-// раскрываются вокруг оси. Геометрия — из scripts/brand/build-logo.mjs
-// (тот же источник, что у статичных SVG/иконок в public/brand).
-// Штрихи идут по осевой линии W с запасом за концами и шире самой буквы —
-// clipPath #wkClip (точный контур W + рукоять) обрезает их до формы знака.
+// Логотип WK в заставке. Хореография:
+//  1. W "прорезается" четырьмя штрихами (cut + heat + spark) — штрихи идут
+//     по осевой с запасом за концами и шире буквы, clipPath #wkClip (точный
+//     контур W) обрезает их до формы знака; жар (heat) — внутри того же
+//     clip, чтобы не светился прямоугольниками за пределами буквы.
+//  2. Сложенная шаветта (рукоять + лезвие и хвостовик, сложенные вдоль неё)
+//     опускается на место и защёлкивается в лигатуру с концом W.
+//  3. Лезвие и хвостовик раскрываются вокруг оси (с перелётом), по фаске
+//     пробегает блик, ось "щёлкает" красной точкой.
+// Геометрия — из scripts/brand/build-logo.mjs (тот же источник, что у
+// статичных SVG/иконок в public/brand).
 const WK_EXT = 70;
-function wkExtend(a: readonly number[], b: readonly number[], atStart: boolean, atEnd: boolean) {
+function wkExtend(a: readonly number[], b: readonly number[], atStart: boolean) {
   const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy);
   const ux = (dx / L) * WK_EXT, uy = (dy / L) * WK_EXT;
   const s = atStart ? [a[0] - ux, a[1] - uy] : a;
-  const e = atEnd ? [b[0] + ux, b[1] + uy] : [b[0] + ux * 0.6, b[1] + uy * 0.6];
-  return `M${s[0]} ${s[1]} L${e[0]} ${e[1]}`;
+  return `M${s[0]} ${s[1]} L${b[0] + ux} ${b[1] + uy}`;
 }
 const WK_TIMES = [
-  { dur: 0.36, start: 0.18 },
-  { dur: 0.34, start: 0.5 },
-  { dur: 0.34, start: 0.8 },
-  { dur: 0.36, start: 1.1 },
+  { dur: 0.3, start: 0.15 },
+  { dur: 0.3, start: 0.42 },
+  { dur: 0.3, start: 0.69 },
+  { dur: 0.32, start: 0.96 },
 ];
-const STROKES = [
-  ...WK.W_PTS.slice(0, -1).map((p, i) => ({
-    d: wkExtend(p, WK.W_PTS[i + 1], i === 0, true),
-    ...WK_TIMES[i],
-  })),
-  // рукоять — сверху вниз
-  { d: `M${WK.HANDLE.x + WK.HANDLE.w / 2} ${WK.TOP - WK_EXT} L${WK.HANDLE.x + WK.HANDLE.w / 2} ${WK.BASE + WK_EXT}`, dur: 0.3, start: 1.42 },
-];
+const STROKES = WK.W_PTS.slice(0, -1).map((p, i) => ({
+  d: wkExtend(p, WK.W_PTS[i + 1], i === 0),
+  ...WK_TIMES[i],
+}));
+const WK_STEEL_STOPS =
+  '<stop offset="0" stop-color="#ffffff"/><stop offset=".08" stop-color="#f2f2f2"/><stop offset=".5" stop-color="#868686"/><stop offset=".92" stop-color="#4a4a4a"/><stop offset="1" stop-color="#3c3c3c"/>';
+// Тот же вертикальный "стальной" градиент, что у W (#wkSteel, y 40..620),
+// но в локальных координатах повёрнутой детали — иначе лезвие и хвостовик
+// выглядели бы другим металлом, чем буква.
+function wkLocalSteel(id: string, angle: number) {
+  const r = (angle * Math.PI) / 180, sn = Math.sin(r), cs = Math.cos(r);
+  const d1 = 40 - WK.PIVOT[1], d2 = 620 - WK.PIVOT[1];
+  return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${d1 * sn}" y1="${d1 * cs}" x2="${d2 * sn}" y2="${d2 * cs}">${WK_STEEL_STOPS}</linearGradient>`;
+}
 const WK_PIVOT_ORIGIN = `transform-origin:${WK.PIVOT[0]}px ${WK.PIVOT[1]}px`;
 function wkKParts(plain: boolean) {
   const [px, py] = WK.PIVOT;
   const hx = WK.HANDLE.x + WK.HANDLE.w / 2;
-  const fill = (g: string) => (plain ? "#fff" : `url(#${g})`);
-  const tang = `<g transform="translate(${px} ${py}) rotate(${WK.TANG.angle})"><rect x="0" y="${-WK.TANG.h / 2}" width="${WK.TANG.len}" height="${WK.TANG.h}" rx="${WK.TANG.h / 2}" fill="${fill("wkTang")}"/></g>`;
-  const blade = `<g transform="translate(${px} ${py}) rotate(${WK.BLADE.angle})"><path d="${WK.BLADE.body}" fill="${fill("wkBlade")}"/>${
-    plain ? "" : `<path d="${WK.BLADE.seam}" fill="none" stroke="#08090b" stroke-width="5" stroke-linecap="round"/><path class="${styles.wkBevel}" d="${WK.BLADE.bevel}" fill="#e02128"/>`
+  const f = (g: string) => (plain ? "#fff" : `url(#${g})`);
+  const defs = plain
+    ? ""
+    : `<defs>${wkLocalSteel("wkSteelB", WK.BLADE.angle)}${wkLocalSteel("wkSteelT", WK.TANG.angle)}<clipPath id="wkBevelClip"><path d="${WK.BLADE.bevel}"/></clipPath></defs>`;
+  const tang = `<g transform="translate(${px} ${py}) rotate(${WK.TANG.angle})"><rect x="0" y="${-WK.TANG.h / 2}" width="${WK.TANG.len}" height="${WK.TANG.h}" rx="${WK.TANG.h / 2}" fill="${f("wkSteelT")}"/></g>`;
+  const blade = `<g transform="translate(${px} ${py}) rotate(${WK.BLADE.angle})"><path d="${WK.BLADE.body}" fill="${f("wkSteelB")}"/>${
+    plain
+      ? ""
+      : `<path d="${WK.BLADE.seam}" fill="none" stroke="#08090b" stroke-width="5" stroke-linecap="round"/><path d="${WK.BLADE.bevel}" fill="#e02128"/><g clip-path="url(#wkBevelClip)"><rect class="${styles.wkGlint}" x="20" y="20" width="46" height="40" fill="#fff"/></g>`
   }</g>`;
-  return `${plain ? "" : `<line class="${styles.wkSeam}" x1="${hx}" y1="${WK.TOP + 46}" x2="${hx}" y2="${WK.BASE - 46}" stroke="#08090b" stroke-width="9" stroke-linecap="round"/>`}
+  const handle = `<rect x="${WK.HANDLE.x}" y="${WK.TOP}" width="${WK.HANDLE.w}" height="${WK.BASE - WK.TOP}" fill="${f("wkSteel")}"/>${
+    plain ? "" : `<line x1="${hx}" y1="${WK.TOP + 46}" x2="${hx}" y2="${WK.BASE - 46}" stroke="#08090b" stroke-width="9" stroke-linecap="round"/>`
+  }`;
+  // Лезвие и хвостовик — ПОД рукоятью: в сложенном виде они спрятаны за
+  // ней, при раскрытии выходят из-под неё (у оси перекрытие закрывает винт).
+  return `${defs}<g class="${styles.wkK}">
     <g class="${styles.wkTang}" style="${WK_PIVOT_ORIGIN}">${tang}</g>
     <g class="${styles.wkBlade}" style="${WK_PIVOT_ORIGIN}">${blade}</g>
-    <g class="${styles.wkPivot}" style="${WK_PIVOT_ORIGIN}"><circle cx="${px}" cy="${py}" r="36" fill="#08090b"/><circle cx="${px}" cy="${py}" r="24" fill="${plain ? "#fff" : "#e02128"}"/></g>`;
+    ${handle}
+    <g class="${styles.wkPivot}" style="${WK_PIVOT_ORIGIN}"><circle cx="${px}" cy="${py}" r="36" fill="#08090b"/><circle cx="${px}" cy="${py}" r="24" fill="${plain ? "#fff" : "#e02128"}"/></g>
+  </g>`;
 }
 
 export function SiteScene() {
@@ -708,11 +730,9 @@ export function SiteScene() {
         el.innerHTML = `<g opacity=".85" filter="url(#sSoften)"><g clip-path="url(#wkClip)">${cuts}</g>${wkKParts(true)}</g>`;
         return;
       }
-      const fx = STROKES.map((s) =>
-        `<path class="${styles.heat}" d="${s.d}" pathLength="1" style="${v(s)}"/>
-         <path class="${styles.spark}" d="${s.d}" pathLength="1" style="${v(s)}"/>`,
-      ).join("");
-      el.innerHTML = `<g filter="url(#sShadow)"><g clip-path="url(#wkClip)">${cuts}</g>${wkKParts(false)}</g>${fx}`;
+      const heat = STROKES.map((s) => `<path class="${styles.heat}" d="${s.d}" pathLength="1" style="${v(s)}"/>`).join("");
+      const sparks = STROKES.map((s) => `<path class="${styles.spark}" d="${s.d}" pathLength="1" style="${v(s)}"/>`).join("");
+      el.innerHTML = `<g filter="url(#sShadow)"><g clip-path="url(#wkClip)">${cuts}${heat}</g>${wkKParts(false)}</g>${sparks}`;
     }
 
     function reveal() {
@@ -1272,7 +1292,6 @@ export function SiteScene() {
             </linearGradient>
             <clipPath id="wkClip">
               <path d={WK.W_OUTLINE} />
-              <rect x={WK.HANDLE.x} y={WK.TOP} width={WK.HANDLE.w} height={WK.BASE - WK.TOP} />
             </clipPath>
             <filter id="sShadow" filterUnits="userSpaceOnUse" x="-80" y="-60" width="1160" height="760">
               <feDropShadow dx="0" dy="6" stdDeviation="16" floodColor="#000" floodOpacity=".55" />

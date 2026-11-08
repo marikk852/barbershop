@@ -548,11 +548,12 @@
   --red: #e02128;
   --red-lo: #8f1418;
   --steelC: #f4f6f8;
-  --t-open: 1.7s;
-  --t-sweep: 2.25s;
-  --t-rule: 2.4s;
-  --t-word: 2.55s;
-  --t-sub: 3.1s;
+  --t-k: 1.12s;
+  --t-open: 1.52s;
+  --t-sweep: 2.2s;
+  --t-rule: 2.35s;
+  --t-word: 2.5s;
+  --t-sub: 3.05s;
   background: radial-gradient(90% 65% at 50% 22%, #16181c 0%, transparent 62%),
     radial-gradient(120% 100% at 50% 55%, #0c0d10 0%, #050506 70%);
 }
@@ -616,39 +617,53 @@
   stroke-width: 150;
   stroke-linecap: butt;
 }
-/* K-шаветта: рукоять уже прорезана штрихом, лезвие и хвостовик
-   раскрываются вокруг оси (transform-origin задан inline = WK.PIVOT, в
-   координатах viewBox — поэтому transform-box: view-box). */
+/* K-шаветта (см. wkKParts в site-scene.tsx). transform-origin задан
+   inline = WK.PIVOT в координатах viewBox — поэтому transform-box: view-box.
+   1) .wkK — сложенная шаветта опускается и защёлкивается в лигатуру;
+   2) .wkBlade/.wkTang — раскрываются из-под рукояти с перелётом;
+   3) .wkGlint — блик по фаске; .wkPivot — "щелчок" оси. */
+.wkK {
+  opacity: 0;
+  transform: translateY(-56px);
+  animation: sDrop 0.46s cubic-bezier(0.3, 0, 0.2, 1) var(--t-k) forwards;
+}
+@keyframes sDrop {
+  0% { opacity: 0; transform: translateY(-56px); }
+  45% { opacity: 1; }
+  78% { transform: translateY(5px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
 .wkBlade, .wkTang, .wkPivot {
   transform-box: view-box;
-  opacity: 0;
 }
 .wkBlade {
   transform: rotate(-35deg);
-  animation: sOpen 0.62s cubic-bezier(0.22, 1.35, 0.4, 1) var(--t-open) forwards;
+  animation: sOpen 0.72s cubic-bezier(0.3, 1.5, 0.45, 1) var(--t-open) forwards;
 }
 .wkTang {
   transform: rotate(41deg);
-  animation: sOpen 0.62s cubic-bezier(0.22, 1.35, 0.4, 1) calc(var(--t-open) + 0.04s) forwards;
+  animation: sOpen 0.72s cubic-bezier(0.3, 1.5, 0.45, 1) calc(var(--t-open) + 0.06s) forwards;
 }
 @keyframes sOpen {
-  0% { opacity: 0; }
-  18% { opacity: 1; }
-  100% { opacity: 1; transform: rotate(0deg); }
+  to { transform: rotate(0deg); }
 }
 .wkPivot {
-  transform: scale(0);
-  animation: sPop 0.38s cubic-bezier(0.3, 1.6, 0.5, 1) calc(var(--t-open) + 0.3s) forwards;
+  opacity: 0;
+  transform: scale(0.2);
+  animation: sPop 0.36s cubic-bezier(0.3, 1.8, 0.5, 1) calc(var(--t-open) + 0.42s) forwards;
 }
 @keyframes sPop {
   to { opacity: 1; transform: scale(1); }
 }
-.wkSeam, .wkBevel {
+.wkGlint {
   opacity: 0;
-  animation: sFadeIn 0.4s ease-out calc(var(--t-open) + 0.35s) forwards;
+  animation: sGlint 0.6s cubic-bezier(0.45, 0, 0.3, 1) calc(var(--t-open) + 0.5s) forwards;
 }
-@keyframes sFadeIn {
-  to { opacity: 1; }
+@keyframes sGlint {
+  0% { opacity: 0; transform: translateX(0); }
+  25% { opacity: 0.95; }
+  80% { opacity: 0.95; }
+  100% { opacity: 0; transform: translateX(300px); }
 }
 .rule {
   width: min(26vw, 220px);
@@ -715,7 +730,7 @@
 }
 .heat {
   stroke: #fff;
-  stroke-width: 100;
+  stroke-width: 150;
   opacity: 0.3;
   stroke-dasharray: 1 2;
   stroke-dashoffset: 1.02;
@@ -918,7 +933,8 @@
   .grain, .splash::after { animation: none; }
   .heat, .spark, .sweep { display: none; }
   .cut { stroke-dashoffset: 0; animation: none; }
-  .wkBlade, .wkTang, .wkPivot, .wkSeam, .wkBevel { opacity: 1; transform: none; animation: none; }
+  .wkK, .wkBlade, .wkTang, .wkPivot { opacity: 1; transform: none; animation: none; }
+  .wkGlint { display: none; }
   .rule { transform: scaleX(1); opacity: 0.85; animation: none; }
   .markwrap { transform: scale(1); animation: none; }
   .word span { opacity: 1; transform: none; filter: none; animation: none; }
