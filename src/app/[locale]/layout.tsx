@@ -25,7 +25,12 @@ export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }
 
+// Основной адрес сайта — для абсолютных ссылок в метаданных (Open Graph
+// и т.п.). SITE_URL задан в Vercel; запасной вариант — прод-домен.
+const SITE_URL = process.env.SITE_URL ?? "https://wkondryabarber.shop";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "W Condrea Barber",
   description: "Barber · Chișinău",
 };
