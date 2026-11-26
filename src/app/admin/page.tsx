@@ -5,6 +5,7 @@ import { SHOP_TIMEZONE, todayInShopTz } from "@/lib/shop-time";
 import { useAdminFetch } from "@/lib/admin-context";
 import { haptic } from "@/lib/telegram-webapp";
 import styles from "./admin.module.css";
+import { BookingsCalendar, type CalTimeOff, type CalWorkingHours } from "./BookingsCalendar";
 
 type BookingStatus = "PENDING" | "CONFIRMED" | "CANCELLED" | "DONE";
 type BookingSource = "SITE" | "MANUAL";
@@ -47,7 +48,9 @@ const STATUS_LABEL: Record<BookingStatus, string> = {
 // booking-status.ts, тот список — только переходы ИЗ уже существующей
 // записи, PENDING туда не входит осознанно; при создании же PENDING
 // вполне уместен — "клиент позвонил, предварительно записал").
-const CREATE_STATUS_OPTIONS: BookingStatus[] = ["DONE", "CONFIRMED", "PENDING", "CANCELLED"];
+// По умолчанию — "Подтверждена": барбер вносит вручную запись, о которой
+// уже договорился с клиентом (по просьбе владельца; раньше было "Выполнена").
+const CREATE_STATUS_OPTIONS: BookingStatus[] = ["CONFIRMED", "PENDING", "DONE", "CANCELLED"];
 
 const dateFmt = new Intl.DateTimeFormat("ru", {
   day: "numeric",
@@ -76,7 +79,7 @@ function emptyForm(): FormState {
     clientEmail: "",
     date: todayInShopTz(),
     time: "",
-    status: "DONE",
+    status: "CONFIRMED",
     notes: "",
     serviceIds: [],
   };
@@ -92,6 +95,17 @@ export default function AdminPage() {
   const [pendingId, setPendingId] = useState<string | null>(null);
 
   const [adding, setAdding] = useState(false);
+  // "Календарь" (по образцу Zilora) или "Список". Выбор запоминается на
+  // этом устройстве; в Telegram WebView localStorage может быть недоступен.
+  const [view, setView] = useState<"calendar" | "list">(() => {
+    try {
+      return typeof window !== "undefined" && window.localStorage.getItem("admin-bookings-view") === "list" ? "list" : "calendar";
+    } catch {
+      return "calendar";
+    }
+  });
+  const [hours, setHours] = useState<CalWorkingHours[] | null>(null);
+  const [timeOff, setTimeOff] = useState<CalTimeOff[] | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
 
@@ -128,7 +142,33 @@ export default function AdminPage() {
         /* форма ручного добавления просто останется без списка услуг —
            не критично для остального экрана, ошибку отдельно не показываем */
       });
+    // График и блокировки — для календаря (штриховка нерабочего времени).
+    adminFetch("/api/admin/working-hours")
+      .then((r) => (r.ok ? (r.json() as Promise<{ rows: CalWorkingHours[] }>) : null))
+      .then((data) => data && setHours(data.rows))
+      .catch(() => {});
+    adminFetch("/api/admin/time-off")
+      .then((r) => (r.ok ? (r.json() as Promise<{ items: CalTimeOff[] }>) : null))
+      .then((data) => data && setTimeOff(data.items))
+      .catch(() => {});
   }, [load, adminFetch]);
+
+  function switchView(next: "calendar" | "list") {
+    setView(next);
+    try {
+      window.localStorage.setItem("admin-bookings-view", next);
+    } catch {
+      /* не критично */
+    }
+  }
+
+  // Тап по свободному времени в календаре — форма ручной записи с уже
+  // подставленными датой и временем.
+  function createAt(date: string, time: string) {
+    setForm({ ...emptyForm(), date, time });
+    setAdding(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   async function deleteBooking(id: string, clientName: string) {
     // Физическое удаление — необратимо, в отличие от смены статуса, поэтому
@@ -261,21 +301,31 @@ export default function AdminPage() {
               value={form.clientEmail}
               onChange={(e) => setForm((f) => ({ ...f, clientEmail: e.target.value }))}
             />
-            <div className={styles.row2}>
-              <input
-                className={styles.input}
-                type="date"
-                value={form.date}
-                onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-                required
-              />
-              <input
-                className={styles.input}
-                type="time"
-                value={form.time}
-                onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))}
-                required
-              />
+            {/* Дата и время — каждое в своей колонке с подписью. minmax(0, 1fr)
+                + min-width: 0 у полей: нативные date/time в iOS имеют свою
+                минимальную ширину и раньше налезали друг на друга. */}
+            <div className={styles.dtRow}>
+              <label className={styles.dtField}>
+                <span className={styles.label}>Дата</span>
+                <input
+                  className={`${styles.input} ${styles.dtInput}`}
+                  type="date"
+                  value={form.date}
+                  onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+                  required
+                />
+              </label>
+              <label className={styles.dtField}>
+                <span className={styles.label}>Время</span>
+                <input
+                  className={`${styles.input} ${styles.dtInput}`}
+                  type="time"
+                  step={1800}
+                  value={form.time}
+                  onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))}
+                  required
+                />
+              </label>
             </div>
 
             <span className={styles.label}>Услуги</span>
@@ -326,6 +376,41 @@ export default function AdminPage() {
         </form>
       )}
 
+      <div className={styles.viewTabs} role="tablist" aria-label="Вид заявок">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "calendar"}
+          className={view === "calendar" ? styles.viewTabOn : ""}
+          onClick={() => switchView("calendar")}
+        >
+          Календарь
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "list"}
+          className={view === "list" ? styles.viewTabOn : ""}
+          onClick={() => switchView("list")}
+        >
+          Список
+          {bookings && bookings.some((b) => b.status === "PENDING") && (
+            <span className={styles.viewTabBadge}>{bookings.filter((b) => b.status === "PENDING").length}</span>
+          )}
+        </button>
+      </div>
+
+      {!error && view === "calendar" && bookings && (
+        <BookingsCalendar
+          bookings={bookings}
+          hours={hours}
+          timeOff={timeOff}
+          pendingId={pendingId}
+          onCreateAt={createAt}
+          onStatus={(id, status) => updateStatus(id, status)}
+        />
+      )}
+
       {!error && !bookings && (
         <div className={styles.list}>
           {[0, 1, 2].map((i) => (
@@ -334,9 +419,9 @@ export default function AdminPage() {
         </div>
       )}
 
-      {!error && bookings && bookings.length === 0 && <p className={styles.hint}>Заявок пока нет.</p>}
+      {!error && view === "list" && bookings && bookings.length === 0 && <p className={styles.hint}>Заявок пока нет.</p>}
 
-      {!error && bookings && bookings.length > 0 && (
+      {!error && view === "list" && bookings && bookings.length > 0 && (
         <div className={styles.list}>
           {bookings.map((b) => (
             <div key={b.id} className={styles.card}>
