@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { sendBookingNotifications, updateBookingStatus } from "@/lib/booking-status";
 import { prisma } from "@/lib/prisma";
-import { answerCallbackQuery, sendTelegramLinkedConfirmation } from "@/lib/telegram-bot";
+import { answerCallbackQuery, sendTelegramLinkedConfirmation, toClientLocale } from "@/lib/telegram-bot";
 import { isActiveAdminTelegramUser } from "@/lib/telegram-auth";
 
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
@@ -113,5 +113,6 @@ async function handleStart(message: NonNullable<TelegramUpdate["message"]>) {
   });
   if (result.count === 0) return;
 
-  await sendTelegramLinkedConfirmation(BigInt(message.chat.id));
+  const booking = await prisma.booking.findUnique({ where: { id: bookingId }, select: { locale: true } });
+  await sendTelegramLinkedConfirmation(BigInt(message.chat.id), toClientLocale(booking?.locale));
 }

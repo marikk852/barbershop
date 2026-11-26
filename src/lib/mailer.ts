@@ -1,4 +1,6 @@
 import nodemailer, { type Transporter } from "nodemailer";
+import type { Locale } from "@/i18n/routing";
+import { intlLocale } from "@/lib/localized";
 
 const GMAIL_USER = process.env.GMAIL_USER;
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
@@ -25,19 +27,19 @@ function getTransporter(): Transporter | null {
 export interface BookingEmailData {
   clientEmail: string;
   clientName: string;
-  serviceNameRu: string;
-  serviceNameRo: string;
+  /// Услуги уже на языке клиента (см. pickLocalized в booking-status.ts).
+  serviceName: string;
   startsAt: Date;
   /// Язык сайта, на котором клиент оформлял заявку (Booking.locale) —
   /// письмо уходит ТОЛЬКО на этом языке, не двуязычно (было RU+RO в
   /// одном теле — по прямой просьбе пользователя заменено на выбор по
   /// локали).
-  locale: "ru" | "ro";
+  locale: Locale;
 }
 
 const SHOP_TIMEZONE = "Europe/Chisinau";
 
-function formatDateTime(d: Date, locale: "ru" | "ro"): string {
+function formatDateTime(d: Date, locale: Locale): string {
   const opts: Intl.DateTimeFormatOptions = {
     day: "numeric",
     month: "long",
@@ -45,7 +47,7 @@ function formatDateTime(d: Date, locale: "ru" | "ro"): string {
     minute: "2-digit",
     timeZone: SHOP_TIMEZONE,
   };
-  return new Intl.DateTimeFormat(locale === "ro" ? "ro-RO" : "ru-RU", opts).format(d);
+  return new Intl.DateTimeFormat(intlLocale(locale), opts).format(d);
 }
 
 const COPY = {
@@ -58,6 +60,11 @@ const COPY = {
     subject: { CONFIRMED: "Programare confirmată — W Condrea Barber", CANCELLED: "Programare anulată — W Condrea Barber" },
     greeting: (name: string) => `Bună, ${name}!`,
     body: { CONFIRMED: "Programarea dvs. a fost confirmată:", CANCELLED: "Programarea dvs. a fost anulată:" },
+  },
+  en: {
+    subject: { CONFIRMED: "Appointment confirmed — W Condrea Barber", CANCELLED: "Appointment cancelled — W Condrea Barber" },
+    greeting: (name: string) => `Hello, ${name}!`,
+    body: { CONFIRMED: "Your appointment is confirmed:", CANCELLED: "Your appointment has been cancelled:" },
   },
 } as const;
 
@@ -73,7 +80,7 @@ export async function sendBookingStatusEmail(
 
   const c = COPY[data.locale];
   const dt = formatDateTime(data.startsAt, data.locale);
-  const serviceName = data.locale === "ro" ? data.serviceNameRo : data.serviceNameRu;
+  const serviceName = data.serviceName;
 
   // Логотип WK — PNG (SVG почтовые клиенты, в т.ч. Gmail, не показывают),
   // абсолютным URL на сайт. Адрес сайта: SITE_URL, иначе системная

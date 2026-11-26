@@ -12,6 +12,7 @@ import {
 import styles from "./booking-flow.module.css";
 import { BOOKING_LIMITS, HONEYPOT_FIELD } from "@/lib/booking-limits";
 import { Link } from "@/i18n/navigation";
+import { intlLocale, pickLocalized } from "@/lib/localized";
 
 interface MonthData {
   workingHours: WorkingHoursRow[];
@@ -22,6 +23,7 @@ interface Service {
   id: string;
   nameRu: string;
   nameRo: string;
+  nameEn: string;
   durationMin: number;
   priceCents: number;
 }
@@ -212,7 +214,7 @@ export function BookingFlow() {
     // Понедельник = 2026-08-03 (реальный понедельник) — просто опорная
     // дата, значение не используется, важен только день недели по кругу.
     const ref = new Date(Date.UTC(2026, 7, 3));
-    const fmt = new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" });
+    const fmt = new Intl.DateTimeFormat(intlLocale(locale), { weekday: "short", timeZone: "UTC" });
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(ref);
       d.setUTCDate(ref.getUTCDate() + i);
@@ -222,7 +224,7 @@ export function BookingFlow() {
 
   const monthTitle = useMemo(() => {
     const [y, m] = visibleMonth.split("-").map(Number);
-    return new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(
+    return new Intl.DateTimeFormat(intlLocale(locale), { month: "long", year: "numeric", timeZone: "UTC" }).format(
       new Date(Date.UTC(y, m - 1, 1)),
     );
   }, [visibleMonth, locale]);
@@ -230,7 +232,7 @@ export function BookingFlow() {
   const selectedDateLabel = useMemo(() => {
     if (!selectedDate) return "";
     const [yy, mm, dd] = selectedDate.split("-").map(Number);
-    return new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", weekday: "long", timeZone: "UTC" }).format(
+    return new Intl.DateTimeFormat(intlLocale(locale), { day: "numeric", month: "long", weekday: "long", timeZone: "UTC" }).format(
       new Date(Date.UTC(yy, mm - 1, dd)),
     );
   }, [selectedDate, locale]);
@@ -373,10 +375,10 @@ export function BookingFlow() {
                             <path d="M2 6.2l2.6 2.6L10 3" stroke="#111319" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
                         </span>
-                        <span className={styles.serviceOptionName}>{locale === "ro" ? sv.nameRo : sv.nameRu}</span>
+                        <span className={styles.serviceOptionName}>{pickLocalized(locale, { ru: sv.nameRu, ro: sv.nameRo, en: sv.nameEn })}</span>
                       </span>
                       <span className={styles.serviceOptionMeta}>
-                        {sv.durationMin} {tPrice("duration")} · {(sv.priceCents / 100).toLocaleString(locale === "ro" ? "ro-RO" : "ru-RU")}{" "}
+                        {sv.durationMin} {tPrice("duration")} · {(sv.priceCents / 100).toLocaleString(intlLocale(locale))}{" "}
                         {tPrice("currency")}
                       </span>
                     </button>
@@ -391,8 +393,8 @@ export function BookingFlow() {
           <div className={styles.summary}>
             <div className={styles.summaryText}>
               {t("selectedLabel")} {selectedDateLabel}, {selectedTime} ·{" "}
-              {selectedServices.map((s) => (locale === "ro" ? s.nameRo : s.nameRu)).join(" + ")} · {totalDurationMin}{" "}
-              {tPrice("duration")} · {(totalPriceCents / 100).toLocaleString(locale === "ro" ? "ro-RO" : "ru-RU")} {tPrice("currency")}
+              {selectedServices.map((s) => pickLocalized(locale, { ru: s.nameRu, ro: s.nameRo, en: s.nameEn })).join(" + ")} · {totalDurationMin}{" "}
+              {tPrice("duration")} · {(totalPriceCents / 100).toLocaleString(intlLocale(locale))} {tPrice("currency")}
             </div>
             <form className={styles.contactForm} onSubmit={handleSubmit}>
               <input

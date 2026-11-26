@@ -351,6 +351,166 @@ const TEXT: Record<Locale, Copy> = {
       },
     ],
   },
+  en: {
+    title: "Privacy Policy",
+    updated: `Version of ${UPDATED}`,
+    intro: `This policy explains what personal data the website of barber ${OPERATOR} collects when you book online, why it is needed, who can see it, how long it is kept and how you can control it. We process data under Law No. 195/2024 of the Republic of Moldova on personal data protection and, for visitors from the EU, under the General Data Protection Regulation (GDPR, Regulation (EU) 2016/679).`,
+    contacts: "Data controller contacts",
+    cols: { purpose: "Why", basis: "Legal basis", retention: "Retention" },
+    sections: [
+      {
+        h: "1. Who is responsible for your data",
+        p: [
+          `The personal data controller is barber ${OPERATOR}, who decides why and how client data is processed and is responsible for it. Send questions about your data and requests regarding your rights to the contacts at the bottom of this page.`,
+          "We follow the core principles of data protection: we collect only what is needed for booking, use it only for that purpose, keep it no longer than necessary and protect it from unauthorised access.",
+        ],
+      },
+      {
+        h: "2. Where we get your data",
+        list: [
+          "from you — when you fill in the booking form on the website or connect Telegram notifications yourself;",
+          "from the barber — if you booked by phone or in person and the barber added the visit to the schedule manually;",
+          "automatically — technical data the website cannot work without (for example, your IP address when you send a request).",
+        ],
+      },
+      {
+        h: "3. What data we keep, why and for how long",
+        table: [
+          {
+            data: "Name and phone number",
+            purpose: "To book you in and contact you to confirm or reschedule the visit",
+            basis: "Preparing and providing the service at your request — Art. 6(1)(b) GDPR",
+            retention: "While the booking is relevant and needed for the visit records; deleted earlier at your request",
+          },
+          {
+            data: "Email (optional)",
+            purpose: "To send you an email when the booking is confirmed or cancelled",
+            basis: "Providing the service — Art. 6(1)(b) GDPR",
+            retention: "Together with the booking",
+          },
+          {
+            data: "Services, date and time of the visit, comment, website language",
+            purpose: "To keep the barber's schedule, prepare for the visit and write to you in your language",
+            basis: "Providing the service — Art. 6(1)(b) GDPR",
+            retention: "Together with the booking",
+          },
+          {
+            data: "Telegram chat ID",
+            purpose: "To send you the booking status in Telegram",
+            basis: "Your consent — you start our bot yourself, Art. 6(1)(a) GDPR",
+            retention: "Together with the booking; you can opt out at any time by stopping the bot",
+          },
+          {
+            data: "IP address when sending a request",
+            purpose: "Protecting the form from spam and abuse",
+            basis: "Legitimate interest — website security, Art. 6(1)(f) GDPR",
+            retention: "Not stored in the database; only requests from the last 10 minutes are counted",
+          },
+          {
+            data: "Visit statistics",
+            purpose: "To understand workload and service popularity and recognise regular clients (number and total of visits by phone number) — visible to the barber only",
+            basis: "Legitimate interest — running the barber's business, Art. 6(1)(f) GDPR; you can object",
+            retention: "Calculated on the fly from existing bookings, not stored separately; deleting a booking also removes it from the statistics",
+          },
+        ],
+        p: [
+          "By ticking the checkbox in the booking form, you confirm that you have read this policy and agree to your data being processed for booking. Online booking is not possible without a name and phone number, as otherwise the barber cannot contact you.",
+        ],
+      },
+      {
+        h: "4. Marketing and automated decisions",
+        p: [
+          "We do not send advertising newsletters or share your data for advertising. Messages about your booking are service messages, not marketing.",
+          "We do not build marketing profiles of clients or make fully automated decisions about you. Every booking request is confirmed or declined by the barber personally.",
+        ],
+      },
+      {
+        h: "5. Health data",
+        p: [
+          "If you mention, for example, an allergy or sensitive skin in the booking comment, this is a special category of data. We use such information only to provide the service safely, and only because you provided it yourself (explicit consent, Art. 9(2)(a) GDPR). Please don't write anything unnecessary in the comment — anything important can be discussed with the barber in person.",
+        ],
+      },
+      {
+        h: "6. Cookies",
+        p: [
+          "The website does not use advertising or analytics cookies or third-party trackers. Only a technical cookie with your chosen website language is stored: it makes the site open in your language and does not require consent.",
+        ],
+      },
+      {
+        h: "7. Who can see your data",
+        p: [
+          "Your data is seen by the barber and, if appointed, booking administrators. To run the website we use technical providers that process data only on our instructions:",
+        ],
+        list: [
+          "Vercel Inc. — website hosting; the host may keep technical request logs under its own terms;",
+          "Prisma Data — database, servers in the EU (Frankfurt);",
+          "Google (Gmail) — sending booking emails if you provided an email address;",
+          "Telegram — notifying the barber about a new request and you about the booking status, if you connected the bot.",
+        ],
+      },
+      {
+        h: "8. International transfers",
+        p: [
+          "The database is located in the EU. Some providers (Vercel, Google, Telegram) may also process data outside the Republic of Moldova and the EU. In such cases the transfer takes place under the data protection terms these companies provide: the EU Standard Contractual Clauses and, where applicable, the EU-U.S. Data Privacy Framework.",
+        ],
+      },
+      {
+        h: "9. How long we keep data",
+        p: [
+          "Booking data is kept while it is needed for the visit and for the barber's visit records. If you ask us to delete your data, we will delete the booking together with your contact details without undue delay. The barber removes cancelled and test bookings from the system.",
+        ],
+      },
+      {
+        h: "10. Security",
+        list: [
+          "the website works only over a secure connection (HTTPS/TLS);",
+          "only the barber and administrators appointed by them can access booking requests, signing in through a verified Telegram account;",
+          "the database is hosted in the EU by a specialised provider;",
+          "the booking form is protected against automated requests and spam.",
+        ],
+      },
+      {
+        h: "11. Your rights",
+        list: [
+          "to find out what data we hold about you and get a copy of it;",
+          "to correct inaccurate or incomplete data;",
+          "to have your data deleted;",
+          "to restrict processing;",
+          "to receive your data in a convenient machine-readable format (portability);",
+          "to object to processing based on legitimate interest;",
+          "to withdraw your consent at any time — this does not affect the lawfulness of processing before the withdrawal;",
+          "to lodge a complaint with the supervisory authority (see section 12).",
+        ],
+        p: [
+          "To exercise your rights, contact us using the details below. We will reply within one month; if the request is complex, this period may be extended by two more months — we will let you know. To avoid giving your data to someone else, we may ask you to confirm that the request really comes from you. This is usually free of charge.",
+        ],
+      },
+      {
+        h: "12. Supervisory authority",
+        p: [
+          "If you believe your data is being processed unlawfully, you can lodge a complaint with the National Center for Personal Data Protection of the Republic of Moldova (NCPDP). This does not affect your right to other remedies.",
+        ],
+      },
+      {
+        h: "13. Children",
+        p: [
+          "Online booking is intended for adults. If you are booking for a child (for example, a kids' haircut), the request is made by a parent or legal guardian, who provides their own contact details. We do not need the child's own data.",
+        ],
+      },
+      {
+        h: "14. Data protection officer",
+        p: [
+          "In our case the law does not require appointing a separate data protection officer (DPO). For any questions about your data, contact the controller directly using the details below.",
+        ],
+      },
+      {
+        h: "15. Changes",
+        p: [
+          "We may update this policy, for example when new features appear on the website. The current version is always published on this page, with the date shown at the top.",
+        ],
+      },
+    ],
+  },
 };
 
 export async function generateMetadata(): Promise<Metadata> {

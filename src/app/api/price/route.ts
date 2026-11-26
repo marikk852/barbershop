@@ -13,6 +13,7 @@ export async function GET() {
       id: s.id,
       nameRu: s.nameRu,
       nameRo: s.nameRo,
+      nameEn: s.nameEn,
       durationMin: s.durationMin,
       priceCents: s.priceCents,
     })),

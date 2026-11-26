@@ -1,0 +1,58 @@
+{
+  "Nav": {
+    "booking": "Booking",
+    "bio": "About",
+    "price": "Prices",
+    "portfolio": "Portfolio",
+    "language": "Choose language"
+  },
+  "Home": {
+    "tagline": "Barber · Chișinău",
+    "cta": "See prices",
+    "hint": "Sideways — rotate · up — open",
+    "skip": "Skip",
+    "fallback": "Your browser doesn't support WebGL"
+  },
+  "Price": {
+    "title": "Prices",
+    "duration": "min",
+    "currency": "MDL"
+  },
+  "Bio": {
+    "title": "About",
+    "call": "Call",
+    "instagram": "Instagram",
+    "telegram": "Telegram"
+  },
+  "Portfolio": {
+    "title": "Portfolio"
+  },
+  "Booking": {
+    "title": "Booking",
+    "soon": "Online booking is coming soon. Meanwhile, message us on Telegram or Instagram.",
+    "close": "Close",
+    "pickDate": "Choose a date",
+    "pickTime": "Choose a time",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "backToCalendar": "Back to calendar",
+    "loading": "Loading…",
+    "noSlots": "No free time on this day — please choose another date.",
+    "pickService": "Choose a service",
+    "timeMismatch": "The selected time doesn't fit this service's duration — please pick another one above.",
+    "selectedLabel": "Booking for",
+    "namePlaceholder": "Your name",
+    "phonePlaceholder": "Phone",
+    "emailPlaceholder": "Email (optional — we'll send a confirmation)",
+    "notesPlaceholder": "Comment (optional)",
+    "submit": "Send request",
+    "submitting": "Sending…",
+    "successTitle": "Request sent!",
+    "successText": "The barber will contact you to confirm your appointment.",
+    "telegramLink": "Get notifications in Telegram",
+    "slotTaken": "This time was just taken — please pick another one above.",
+    "genericError": "Couldn't send the request — please try again.",
+    "tooMany": "Too many requests in a row — please try later or call the barber.",
+    "consent": "I have read the <link>Privacy Policy</link> and agree to the processing of my personal data for booking and contacting me."
+  }
+}

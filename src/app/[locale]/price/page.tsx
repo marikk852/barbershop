@@ -1,6 +1,7 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
 import type { Locale } from "@/i18n/routing";
+import { intlLocale, pickLocalized } from "@/lib/localized";
 
 export default async function PricePage() {
   const t = await getTranslations("Price");
@@ -19,13 +20,13 @@ export default async function PricePage() {
         {services.map((s) => (
           <li key={s.id} className="flex items-baseline justify-between gap-4 py-5">
             <div>
-              <div className="text-lg">{locale === "ro" ? s.nameRo : s.nameRu}</div>
+              <div className="text-lg">{pickLocalized(locale, { ru: s.nameRu, ro: s.nameRo, en: s.nameEn })}</div>
               <div className="mt-1 text-sm text-zinc-500">
                 {s.durationMin} {t("duration")}
               </div>
             </div>
             <div className="whitespace-nowrap font-serif text-lg text-zinc-100">
-              {(s.priceCents / 100).toLocaleString(locale === "ro" ? "ro-RO" : "ru-RU")}{" "}
+              {(s.priceCents / 100).toLocaleString(intlLocale(locale))}{" "}
               <span className="text-sm text-zinc-500">{t("currency")}</span>
             </div>
           </li>

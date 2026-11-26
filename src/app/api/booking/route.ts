@@ -245,6 +245,7 @@ export async function POST(request: Request) {
     servicesLabel: services.map((s) => s.nameRu).join(" + "),
     totalDurationMin,
     totalPriceCents: services.reduce((acc, s) => acc + s.priceCents, 0),
+    locale,
   });
   if (telegramMessageId) {
     await prisma.booking.update({ where: { id: booking.id }, data: { telegramMessageId } });

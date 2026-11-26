@@ -1,4 +1,6 @@
 import { SHOP_TIMEZONE } from "@/lib/shop-time";
+import { routing, type Locale } from "@/i18n/routing";
+import { intlLocale } from "@/lib/localized";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 // Группа "WKondrea_barber" (форум-режим, темы включены) — уведомления
@@ -22,8 +24,8 @@ function escapeHtml(s: string): string {
 // Дефолт "ru" — карточка барберу (bookingCard) всегда на русском вне
 // зависимости от локали клиента (это внутреннее сообщение для барбера,
 // не клиентское); notifyClientStatusChange ниже передаёт locale явно.
-function formatDateTime(d: Date, locale: "ru" | "ro" = "ru"): string {
-  return new Intl.DateTimeFormat(locale === "ro" ? "ro-RO" : "ru-RU", {
+function formatDateTime(d: Date, locale: Locale = "ru"): string {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
     day: "numeric",
     month: "long",
     weekday: "short",
@@ -80,7 +82,12 @@ export interface BookingNotifyData {
   servicesLabel: string;
   totalDurationMin: number;
   totalPriceCents: number;
+  /// Язык сайта клиента — в карточке барберу показывается, только если не
+  /// русский (чтобы знать, на каком языке перезванивать).
+  locale?: string;
 }
+
+const LOCALE_LABEL: Record<string, string> = { ro: "румынский", en: "английский" };
 
 function bookingCard(data: BookingNotifyData, statusLine?: string): string {
   const lines = [
@@ -91,6 +98,7 @@ function bookingCard(data: BookingNotifyData, statusLine?: string): string {
     `📅 ${formatDateTime(data.startsAt)}`,
     `✂️ ${escapeHtml(data.servicesLabel)} · ${data.totalDurationMin} мин · ${(data.totalPriceCents / 100).toLocaleString("ru-RU")} MDL`,
   ];
+  if (data.locale && LOCALE_LABEL[data.locale]) lines.push(`🌐 Язык клиента: ${LOCALE_LABEL[data.locale]}`);
   if (statusLine) lines.push("", statusLine);
   return lines.join("\n");
 }
@@ -151,6 +159,28 @@ export async function logBookingHistory(data: BookingNotifyData, status: "CONFIR
   });
 }
 
+// Тексты клиенту в Telegram — на языке сайта, где оформлялась заявка.
+const CLIENT_COPY: Record<Locale, { greeting: (name: string) => string; confirmed: string; cancelled: string; linked: string }> = {
+  ru: {
+    greeting: (n) => `Здравствуйте, ${n}!`,
+    confirmed: "Ваша запись подтверждена:",
+    cancelled: "Ваша запись отменена:",
+    linked: "Готово! Будем присылать сюда уведомления о статусе вашей записи.",
+  },
+  ro: {
+    greeting: (n) => `Bună, ${n}!`,
+    confirmed: "Programarea dvs. a fost confirmată:",
+    cancelled: "Programarea dvs. a fost anulată:",
+    linked: "Gata! Vă vom trimite aici notificări despre statusul programării.",
+  },
+  en: {
+    greeting: (n) => `Hello, ${n}!`,
+    confirmed: "Your appointment is confirmed:",
+    cancelled: "Your appointment has been cancelled:",
+    linked: "Done! We'll send updates about your appointment here.",
+  },
+};
+
 // Уведомление КЛИЕНТУ о смене статуса — только если он успел перейти по
 // ссылке "Получать уведомления в Telegram" (см. /api/telegram/webhook,
 // обработка /start) и мы знаем его chat_id. Раньше уходило двуязычно
@@ -159,25 +189,19 @@ export async function logBookingHistory(data: BookingNotifyData, status: "CONFIR
 // принцип, что и у email-письма в mailer.ts).
 export async function notifyClientStatusChange(
   chatId: bigint,
-  data: { clientName: string; servicesLabel: string; servicesLabelRo: string; startsAt: Date; locale: "ru" | "ro" },
+  // servicesLabel — уже на языке клиента (см. booking-status.ts).
+  data: { clientName: string; servicesLabel: string; startsAt: Date; locale: Locale },
   status: "CONFIRMED" | "CANCELLED",
 ): Promise<void> {
   const isConfirmed = status === "CONFIRMED";
   const dt = formatDateTime(data.startsAt, data.locale);
-  const text =
-    data.locale === "ro"
-      ? [
-          `Bună, ${escapeHtml(data.clientName)}!`,
-          isConfirmed ? "Programarea dvs. a fost confirmată:" : "Programarea dvs. a fost anulată:",
-          `📅 ${dt}`,
-          `✂️ ${escapeHtml(data.servicesLabelRo)}`,
-        ].join("\n")
-      : [
-          `Здравствуйте, ${escapeHtml(data.clientName)}!`,
-          isConfirmed ? "Ваша запись подтверждена:" : "Ваша запись отменена:",
-          `📅 ${dt}`,
-          `✂️ ${escapeHtml(data.servicesLabel)}`,
-        ].join("\n");
+  const c = CLIENT_COPY[data.locale];
+  const text = [
+    c.greeting(escapeHtml(data.clientName)),
+    isConfirmed ? c.confirmed : c.cancelled,
+    `📅 ${dt}`,
+    `✂️ ${escapeHtml(data.servicesLabel)}`,
+  ].join("\n");
   await callApi("sendMessage", { chat_id: chatId.toString(), text });
 }
 
@@ -185,10 +209,14 @@ export async function notifyClientStatusChange(
 // привязка chat_id к записи сработала (см. webhook). Отдельно от
 // notifyClientStatusChange: это не про статус записи, а про сам факт
 // подписки на уведомления.
-export async function sendTelegramLinkedConfirmation(chatId: bigint): Promise<void> {
+export function toClientLocale(value: string | null | undefined): Locale {
+  return routing.locales.includes(value as Locale) ? (value as Locale) : routing.defaultLocale;
+}
+
+export async function sendTelegramLinkedConfirmation(chatId: bigint, locale: Locale): Promise<void> {
   await callApi("sendMessage", {
     chat_id: chatId.toString(),
-    text: "Готово! Будем присылать сюда уведомления о статусе вашей записи.\n\nGata! Vă vom trimite aici notificări despre statusul programării.",
+    text: CLIENT_COPY[locale].linked,
   });
 }
 

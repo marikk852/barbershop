@@ -11,6 +11,7 @@ export async function GET() {
       imageUrl: i.imageUrl,
       captionRu: i.captionRu,
       captionRo: i.captionRo,
+      captionEn: i.captionEn,
       width: i.width,
       height: i.height,
     })),

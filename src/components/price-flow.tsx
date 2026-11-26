@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import styles from "./content-flow.module.css";
+import { intlLocale, pickLocalized } from "@/lib/localized";
 
 interface Service {
   id: string;
   nameRu: string;
   nameRo: string;
+  nameEn: string;
   durationMin: number;
   priceCents: number;
 }
@@ -47,13 +49,13 @@ export function PriceFlow() {
       {services.map((s) => (
         <li key={s.id} className={styles.priceRow}>
           <div>
-            <div className={styles.priceName}>{locale === "ro" ? s.nameRo : s.nameRu}</div>
+            <div className={styles.priceName}>{pickLocalized(locale, { ru: s.nameRu, ro: s.nameRo, en: s.nameEn })}</div>
             <div className={styles.meta}>
               {s.durationMin} {t("duration")}
             </div>
           </div>
           <div className={styles.priceValue}>
-            {(s.priceCents / 100).toLocaleString(locale === "ro" ? "ro-RO" : "ru-RU")}{" "}
+            {(s.priceCents / 100).toLocaleString(intlLocale(locale))}{" "}
             <span className={styles.meta}>{t("currency")}</span>
           </div>
         </li>

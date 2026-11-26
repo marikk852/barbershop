@@ -6,6 +6,7 @@ import { getInitDataFromRequest, requireAdmin } from "@/lib/telegram-auth";
 interface UpdateBody {
   captionRu?: string | null;
   captionRo?: string | null;
+  captionEn?: string | null;
   order?: number;
   width?: number;
   height?: number;
@@ -30,6 +31,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       data: {
         captionRu: body.captionRu === undefined ? undefined : body.captionRu?.trim() || null,
         captionRo: body.captionRo === undefined ? undefined : body.captionRo?.trim() || null,
+        captionEn: body.captionEn === undefined ? undefined : body.captionEn?.trim() || null,
         order: body.order,
         // width/height — заполняются один раз при загрузке (см.
         // admin/portfolio/page.tsx) либо задним числом бэкафилл-скриптом

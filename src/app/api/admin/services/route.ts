@@ -38,6 +38,8 @@ async function uniqueSlug(base: string): Promise<string> {
 interface ServiceBody {
   nameRu?: string;
   nameRo?: string;
+  /// Необязательное: пусто — на английской версии показывается nameRu.
+  nameEn?: string;
   durationMin?: number;
   priceCents?: number;
   order?: number;
@@ -59,6 +61,7 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as ServiceBody | null;
   const nameRu = body?.nameRu?.trim();
   const nameRo = body?.nameRo?.trim();
+  const nameEn = body?.nameEn?.trim() ?? "";
   const durationMin = body?.durationMin;
   const priceCents = body?.priceCents;
   if (!nameRu || !nameRo || !durationMin || durationMin <= 0 || priceCents == null || priceCents < 0) {
@@ -74,7 +77,7 @@ export async function POST(request: Request) {
   const order = body?.order ?? ((await prisma.service.aggregate({ _max: { order: true } }))._max.order ?? -1) + 1;
 
   const service = await prisma.service.create({
-    data: { slug, nameRu, nameRo, durationMin, priceCents, order, active: body?.active ?? true },
+    data: { slug, nameRu, nameRo, nameEn, durationMin, priceCents, order, active: body?.active ?? true },
   });
   return NextResponse.json({ service }, { status: 201 });
 }

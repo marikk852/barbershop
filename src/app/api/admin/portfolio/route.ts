@@ -6,6 +6,7 @@ interface CreateBody {
   imageUrl?: string;
   captionRu?: string;
   captionRo?: string;
+  captionEn?: string;
   width?: number;
   height?: number;
 }
@@ -45,6 +46,7 @@ export async function POST(request: Request) {
       imageUrl,
       captionRu: body?.captionRu?.trim() || null,
       captionRo: body?.captionRo?.trim() || null,
+      captionEn: body?.captionEn?.trim() || null,
       width: parseDim(body?.width),
       height: parseDim(body?.height),
       order,

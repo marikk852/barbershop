@@ -10,6 +10,7 @@ interface Service {
   slug: string;
   nameRu: string;
   nameRo: string;
+  nameEn: string;
   durationMin: number;
   priceCents: number;
   order: number;
@@ -19,17 +20,19 @@ interface Service {
 interface FormState {
   nameRu: string;
   nameRo: string;
+  nameEn: string;
   durationMin: string;
   price: string; // MDL, не центы — центы это деталь хранения, не то, чем оперирует барбер
   active: boolean;
 }
 
-const EMPTY_FORM: FormState = { nameRu: "", nameRo: "", durationMin: "", price: "", active: true };
+const EMPTY_FORM: FormState = { nameRu: "", nameRo: "", nameEn: "", durationMin: "", price: "", active: true };
 
 function toForm(s: Service): FormState {
   return {
     nameRu: s.nameRu,
     nameRo: s.nameRo,
+    nameEn: s.nameEn ?? "",
     durationMin: String(s.durationMin),
     price: String(s.priceCents / 100),
     active: s.active,
@@ -78,7 +81,7 @@ export default function ServicesPage() {
     setAdding(false);
   }
 
-  function parseFormOrError(): { nameRu: string; nameRo: string; durationMin: number; priceCents: number } | null {
+  function parseFormOrError(): { nameRu: string; nameRo: string; nameEn: string; durationMin: number; priceCents: number } | null {
     const durationMin = Number(form.durationMin);
     const priceLeu = Number(form.price.replace(",", "."));
     if (!form.nameRu.trim() || !form.nameRo.trim()) {
@@ -93,7 +96,7 @@ export default function ServicesPage() {
       setError("Цена должна быть неотрицательным числом.");
       return null;
     }
-    return { nameRu: form.nameRu.trim(), nameRo: form.nameRo.trim(), durationMin, priceCents: Math.round(priceLeu * 100) };
+    return { nameRu: form.nameRu.trim(), nameRo: form.nameRo.trim(), nameEn: form.nameEn.trim(), durationMin, priceCents: Math.round(priceLeu * 100) };
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -221,6 +224,12 @@ export default function ServicesPage() {
               onChange={(e) => setForm((f) => ({ ...f, nameRo: e.target.value }))}
               required
             />
+            <input
+              className={styles.input}
+              placeholder="Название (англ.) — необязательно"
+              value={form.nameEn}
+              onChange={(e) => setForm((f) => ({ ...f, nameEn: e.target.value }))}
+            />
             <div className={styles.row2}>
               <input
                 className={styles.input}
@@ -277,6 +286,7 @@ export default function ServicesPage() {
                   {!s.active && <span className={`${styles.statusBadge} ${styles.statusDONE}`}>Скрыта</span>}
                 </div>
                 <div className={styles.cardRow}>{s.nameRo}</div>
+                {s.nameEn && <div className={styles.cardRow}>{s.nameEn}</div>}
                 <div className={styles.cardRow}>
                   {s.durationMin} мин · {(s.priceCents / 100).toLocaleString("ru-RU")} MDL
                 </div>

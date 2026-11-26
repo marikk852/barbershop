@@ -6,6 +6,8 @@ import { getInitDataFromRequest, requireAdmin } from "@/lib/telegram-auth";
 interface ServiceBody {
   nameRu?: string;
   nameRo?: string;
+  /// Необязательное: пусто — на английской версии показывается nameRu.
+  nameEn?: string;
   durationMin?: number;
   priceCents?: number;
   order?: number;
@@ -37,6 +39,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       data: {
         nameRu: body.nameRu?.trim(),
         nameRo: body.nameRo?.trim(),
+        nameEn: body.nameEn?.trim(),
         durationMin: body.durationMin,
         priceCents: body.priceCents,
         order: body.order,

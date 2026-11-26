@@ -5,6 +5,7 @@ import { getInitDataFromRequest, requireAdmin } from "@/lib/telegram-auth";
 interface UpdateBody {
   bioRu?: string;
   bioRo?: string;
+  bioEn?: string;
   phone?: string | null;
   instagram?: string | null;
   telegramUsername?: string | null;
@@ -35,6 +36,7 @@ export async function PATCH(request: Request) {
   const data = {
     bioRu: body.bioRu?.trim(),
     bioRo: body.bioRo?.trim(),
+    bioEn: body.bioEn?.trim(),
     phone: body.phone === undefined ? undefined : body.phone?.trim() || null,
     instagram: body.instagram === undefined ? undefined : body.instagram?.trim() || null,
     telegramUsername: body.telegramUsername === undefined ? undefined : body.telegramUsername?.trim() || null,

@@ -9,6 +9,7 @@ export async function GET() {
   return NextResponse.json({
     bioRu: content?.bioRu ?? "",
     bioRo: content?.bioRo ?? "",
+    bioEn: content?.bioEn ?? "",
     address: content?.address ?? null,
     // phone/instagram/telegramUsername лежали в модели неиспользуемыми —
     // отдаём их тоже, попап сам решает, показывать бейдж или нет (null

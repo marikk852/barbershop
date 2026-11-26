@@ -11,6 +11,7 @@ interface PortfolioItem {
   imageUrl: string;
   captionRu: string | null;
   captionRo: string | null;
+  captionEn: string | null;
   order: number;
 }
 
@@ -25,7 +26,7 @@ export default function PortfolioPage() {
   const [progress, setProgress] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [captionDraft, setCaptionDraft] = useState({ ru: "", ro: "" });
+  const [captionDraft, setCaptionDraft] = useState({ ru: "", ro: "", en: "" });
 
   function load() {
     setError(null);
@@ -102,7 +103,7 @@ export default function PortfolioPage() {
 
   function startEditCaption(item: PortfolioItem) {
     setEditingId(item.id);
-    setCaptionDraft({ ru: item.captionRu ?? "", ro: item.captionRo ?? "" });
+    setCaptionDraft({ ru: item.captionRu ?? "", ro: item.captionRo ?? "", en: item.captionEn ?? "" });
   }
 
   async function saveCaption(id: string) {
@@ -111,7 +112,7 @@ export default function PortfolioPage() {
       const r = await adminFetch(`/api/admin/portfolio/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ captionRu: captionDraft.ru, captionRo: captionDraft.ro }),
+        body: JSON.stringify({ captionRu: captionDraft.ru, captionRo: captionDraft.ro, captionEn: captionDraft.en }),
       });
       if (!r.ok) throw new Error();
       haptic("success");
@@ -271,6 +272,13 @@ export default function PortfolioPage() {
               value={captionDraft.ro}
               onChange={(e) => setCaptionDraft((c) => ({ ...c, ro: e.target.value }))}
               placeholder="Bunăoară: Tuns clasic"
+            />
+            <span className={styles.label}>Подпись (англ.) — необязательно</span>
+            <input
+              className={styles.input}
+              value={captionDraft.en}
+              onChange={(e) => setCaptionDraft((c) => ({ ...c, en: e.target.value }))}
+              placeholder="For example: Classic haircut"
             />
             <div className={styles.btnRow}>
               <button

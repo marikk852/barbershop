@@ -4,8 +4,10 @@ import {
   deleteAdminBookingMessage,
   logBookingHistory,
   notifyClientStatusChange,
+  toClientLocale,
   type BookingNotifyData,
 } from "@/lib/telegram-bot";
+import { pickLocalized } from "@/lib/localized";
 
 export const ALLOWED_BOOKING_STATUSES = ["CONFIRMED", "CANCELLED", "DONE"] as const;
 export type AllowedBookingStatus = (typeof ALLOWED_BOOKING_STATUSES)[number];
@@ -28,7 +30,7 @@ async function updateBookingStatus(id: string, status: AllowedBookingStatus) {
     return await prisma.booking.update({
       where: { id },
       data: { status },
-      include: { services: { include: { service: { select: { nameRu: true, nameRo: true, priceCents: true } } } } },
+      include: { services: { include: { service: { select: { nameRu: true, nameRo: true, nameEn: true, priceCents: true } } } } },
     });
   } catch {
     // Prisma кидает при "запись не найдена" (P2025) — единственный
@@ -51,7 +53,6 @@ type UpdatedBooking = NonNullable<Awaited<ReturnType<typeof updateBookingStatus>
 // назначения. Каждая функция сама ловит свои ошибки и не бросает наружу.
 async function sendBookingNotifications(updated: UpdatedBooking, status: "CONFIRMED" | "CANCELLED"): Promise<void> {
   const servicesLabelRu = updated.services.map((bs) => bs.service.nameRu).join(" + ");
-  const servicesLabelRo = updated.services.map((bs) => bs.service.nameRo).join(" + ");
   const totalDurationMin = updated.services.reduce((sum, bs) => sum + bs.durationMin, 0);
   const totalPriceCents = updated.services.reduce((sum, bs) => sum + bs.priceCents, 0);
 
@@ -59,15 +60,17 @@ async function sendBookingNotifications(updated: UpdatedBooking, status: "CONFIR
   // ("ru"/"ro", @default("ru") покрывает записи, созданные до появления
   // этого поля) — оба клиентских канала уходят ТОЛЬКО на нём, не
   // двуязычно (было RU+RO в одном сообщении).
-  const clientLocale = updated.locale === "ro" ? "ro" : "ru";
+  const clientLocale = toClientLocale(updated.locale);
+  const clientServicesLabel = updated.services
+    .map((bs) => pickLocalized(clientLocale, { ru: bs.service.nameRu, ro: bs.service.nameRo, en: bs.service.nameEn }))
+    .join(" + ");
 
   if (updated.clientEmail) {
     await sendBookingStatusEmail(
       {
         clientEmail: updated.clientEmail,
         clientName: updated.clientName,
-        serviceNameRu: servicesLabelRu,
-        serviceNameRo: servicesLabelRo,
+        serviceName: clientServicesLabel,
         startsAt: updated.startsAt,
         locale: clientLocale,
       },
@@ -80,8 +83,7 @@ async function sendBookingNotifications(updated: UpdatedBooking, status: "CONFIR
       updated.clientTelegramChatId,
       {
         clientName: updated.clientName,
-        servicesLabel: servicesLabelRu,
-        servicesLabelRo,
+        servicesLabel: clientServicesLabel,
         startsAt: updated.startsAt,
         locale: clientLocale,
       },
@@ -97,6 +99,7 @@ async function sendBookingNotifications(updated: UpdatedBooking, status: "CONFIR
     servicesLabel: servicesLabelRu,
     totalDurationMin,
     totalPriceCents,
+    locale: updated.locale,
   };
   // "Заявки" — только то, что ждёт решения: удаляем исходную карточку
   // (если она вообще была отправлена — telegramMessageId мог не

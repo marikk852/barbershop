@@ -1,13 +1,14 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
 import type { Locale } from "@/i18n/routing";
+import { pickLocalized } from "@/lib/localized";
 
 export default async function BioPage() {
   const t = await getTranslations("Bio");
   const locale = (await getLocale()) as Locale;
 
   const content = await prisma.siteContent.findUnique({ where: { id: 1 } });
-  const bio = locale === "ro" ? content?.bioRo : content?.bioRu;
+  const bio = pickLocalized(locale, { ru: content?.bioRu, ro: content?.bioRo, en: content?.bioEn });
 
   return (
     <main className="mx-auto max-w-2xl px-6 pb-16" style={{ paddingTop: "calc(var(--scene-h) + 2.5rem)" }}>

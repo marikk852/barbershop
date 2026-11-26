@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useLocale } from "next-intl";
 import styles from "./content-flow.module.css";
+import { pickLocalized } from "@/lib/localized";
 
 interface PortfolioItem {
   id: string;
   imageUrl: string;
   captionRu: string | null;
   captionRo: string | null;
+  captionEn: string | null;
 }
 
 export function PortfolioFlow() {
@@ -41,7 +43,7 @@ export function PortfolioFlow() {
   return (
     <div className={styles.portfolioGrid}>
       {items.map((item) => {
-        const caption = locale === "ro" ? item.captionRo : item.captionRu;
+        const caption = pickLocalized(locale, { ru: item.captionRu, ro: item.captionRo, en: item.captionEn }) || null;
         return (
           <figure key={item.id} className={styles.portfolioItem}>
             {/* loading="eager", не дефолтный lazy: сетка скроллится ВНУТРИ

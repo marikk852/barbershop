@@ -9,6 +9,7 @@ import { SiteQrCard } from "./SiteQrCard";
 interface SiteContentData {
   bioRu: string;
   bioRo: string;
+  bioEn: string;
   phone: string | null;
   instagram: string | null;
   telegramUsername: string | null;
@@ -221,6 +222,14 @@ export default function ContentPage() {
                 style={{ minHeight: 100 }}
                 value={content.bioRo}
                 onChange={(e) => setContent((c) => (c ? { ...c, bioRo: e.target.value } : c))}
+              />
+              <span className={styles.label}>О себе (англ.) — необязательно</span>
+              <textarea
+                className={styles.textarea}
+                style={{ minHeight: 100 }}
+                value={content.bioEn}
+                onChange={(e) => setContent((c) => (c ? { ...c, bioEn: e.target.value } : c))}
+                placeholder="Пусто — на английской версии сайта показывается текст на русском"
               />
               <span className={styles.label}>Телефон</span>
               <input

@@ -60,6 +60,8 @@ model Service {
   slug        String   @unique
   nameRu      String
   nameRo      String
+  /// Английское название; пусто — на английской версии сайта показывается nameRu.
+  nameEn      String   @default("")
   durationMin Int
   priceCents  Int
   order       Int      @default(0)
@@ -184,6 +186,7 @@ model PortfolioItem {
   imageUrl  String
   captionRu String?
   captionRo String?
+  captionEn String?
   /// Реальные пиксельные размеры исходника — читаются в браузере при
   /// загрузке (см. admin/portfolio/page.tsx) и передаются на сервер вместе
   /// с imageUrl. Нужны публичной сетке портфолио для масонри-раскладки:
@@ -203,6 +206,7 @@ model SiteContent {
   id               Int      @id @default(1)
   bioRu            String   @default("")
   bioRo            String   @default("")
+  bioEn            String   @default("")
   phone            String?
   instagram        String?
   telegramUsername String?

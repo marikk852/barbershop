@@ -1,9 +1,10 @@
 import { defineRouting } from "next-intl/routing";
 
 export const routing = defineRouting({
-  locales: ["ru", "ro"],
+  locales: ["ru", "ro", "en"],
   defaultLocale: "ru",
-  // Русский без префикса ("/", "/price"), румынский с префиксом ("/ro", "/ro/price").
+  // Русский без префикса ("/", "/price"), румынский и английский — с префиксом
+  // ("/ro", "/ro/price", "/en", "/en/price").
   // Явно, а не по умолчанию библиотеки — чтобы поведение было понятно из кода.
   localePrefix: "as-needed",
 });

@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import type { SVGProps } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import styles from "./content-flow.module.css";
+import { pickLocalized } from "@/lib/localized";
 
 interface BioData {
   bioRu: string;
   bioRo: string;
+  bioEn: string;
   address: string | null;
   phone: string | null;
   instagram: string | null;
@@ -88,7 +90,7 @@ export function BioFlow() {
     );
   }
 
-  const bio = locale === "ro" ? data.bioRo : data.bioRu;
+  const bio = pickLocalized(locale, { ru: data.bioRu, ro: data.bioRo, en: data.bioEn });
   const instagramHandle = data.instagram?.replace(/^@/, "");
   const telegramHandle = data.telegramUsername?.replace(/^@/, "");
   const hasContacts = data.address || data.phone || instagramHandle || telegramHandle;

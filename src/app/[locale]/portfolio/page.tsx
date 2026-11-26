@@ -2,6 +2,7 @@ import Image from "next/image";
 import { getLocale, getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
 import type { Locale } from "@/i18n/routing";
+import { pickLocalized } from "@/lib/localized";
 
 export default async function PortfolioPage() {
   const t = await getTranslations("Portfolio");
@@ -22,7 +23,7 @@ export default async function PortfolioPage() {
           см. content-flow.module.css. */}
       <div className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3">
         {items.map((item) => {
-          const caption = locale === "ro" ? item.captionRo : item.captionRu;
+          const caption = pickLocalized(locale, { ru: item.captionRu, ro: item.captionRo, en: item.captionEn }) || null;
           return (
             <figure key={item.id} className="group relative aspect-[3/4] overflow-hidden rounded-md">
               {/* loading="eager" — см. тот же комментарий в portfolio-flow.tsx:
