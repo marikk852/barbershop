@@ -11,6 +11,10 @@ interface TelegramWebApp {
   ready: () => void;
   expand: () => void;
   colorScheme: "light" | "dark";
+  // Bot API 8.0+: нативное "Сохранить файл" в Telegram-клиенте (обычная
+  // <a download> внутри WebView Telegram часто ничего не делает).
+  isVersionAtLeast?: (version: string) => boolean;
+  downloadFile?: (params: { url: string; file_name: string }, callback?: (accepted: boolean) => void) => void;
   HapticFeedback?: {
     impactOccurred: (style: "light" | "medium" | "heavy" | "rigid" | "soft") => void;
     notificationOccurred: (type: "error" | "success" | "warning") => void;

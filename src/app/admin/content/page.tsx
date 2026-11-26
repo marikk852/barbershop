@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useAdminFetch } from "@/lib/admin-context";
 import { haptic } from "@/lib/telegram-webapp";
 import styles from "../admin.module.css";
+import { SiteQrCard } from "./SiteQrCard";
 
 interface SiteContentData {
   bioRu: string;
@@ -391,6 +392,9 @@ export default function ContentPage() {
           </button>
         )}
       </section>
+
+      {/* --- QR-код сайта --- */}
+      <SiteQrCard />
     </main>
   );
 }

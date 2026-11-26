@@ -14,7 +14,10 @@ export const metadata: Metadata = {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ru">
+    // suppressHydrationWarning: telegram-web-app.js (beforeInteractive) до
+    // гидрации пишет в <html> style с --tg-viewport-height — без этого React
+    // в dev ругается на расхождение атрибутов. Касается только самого <html>.
+    <html lang="ru" suppressHydrationWarning>
       <head>
         {/* beforeInteractive — must be in root layout per Next.js docs;
             это и есть корневой layout для этого поддерева. Скрипт кладёт
