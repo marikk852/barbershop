@@ -13,7 +13,7 @@ import { PriceFlow } from "@/components/price-flow";
 import { PortfolioFlow } from "@/components/portfolio-flow";
 import { BookingIcon, BioIcon, PriceIcon, PortfolioIcon } from "@/components/nav-icons";
 import styles from "./site-scene.module.css";
-import { WK } from "@/components/wk-logo-geometry";
+import { SplashLogo } from "@/components/splash-logo";
 
 const NAV_ITEMS = [
   { num: "01", key: "booking", href: "/booking", Icon: BookingIcon, dockOrder: 3 },
@@ -34,7 +34,6 @@ function prefersReducedMotion() {
   return typeof window !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-const BRAND = "CONDREA";
 
 function isHomePathname(pathname: string) {
   if (pathname === "/") return true;
@@ -147,71 +146,6 @@ function makeScale() {
   return g;
 }
 
-// Логотип WK в заставке. Хореография:
-//  1. W "прорезается" четырьмя штрихами (cut + heat + spark) — штрихи идут
-//     по осевой с запасом за концами и шире буквы, clipPath #wkClip (точный
-//     контур W) обрезает их до формы знака; жар (heat) — внутри того же
-//     clip, чтобы не светился прямоугольниками за пределами буквы.
-//  2. Сложенная шаветта (рукоять + лезвие и хвостовик, сложенные вдоль неё)
-//     опускается на место и защёлкивается в лигатуру с концом W.
-//  3. Лезвие и хвостовик раскрываются вокруг оси (с перелётом), по фаске
-//     пробегает блик, ось "щёлкает" красной точкой.
-// Геометрия — из scripts/brand/build-logo.mjs (тот же источник, что у
-// статичных SVG/иконок в public/brand).
-const WK_EXT = 70;
-function wkExtend(a: readonly number[], b: readonly number[], atStart: boolean) {
-  const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy);
-  const ux = (dx / L) * WK_EXT, uy = (dy / L) * WK_EXT;
-  const s = atStart ? [a[0] - ux, a[1] - uy] : a;
-  return `M${s[0]} ${s[1]} L${b[0] + ux} ${b[1] + uy}`;
-}
-const WK_TIMES = [
-  { dur: 0.3, start: 0.15 },
-  { dur: 0.3, start: 0.42 },
-  { dur: 0.3, start: 0.69 },
-  { dur: 0.32, start: 0.96 },
-];
-const STROKES = WK.W_PTS.slice(0, -1).map((p, i) => ({
-  d: wkExtend(p, WK.W_PTS[i + 1], i === 0),
-  ...WK_TIMES[i],
-}));
-const WK_STEEL_STOPS =
-  '<stop offset="0" stop-color="#ffffff"/><stop offset=".08" stop-color="#f2f2f2"/><stop offset=".5" stop-color="#868686"/><stop offset=".92" stop-color="#4a4a4a"/><stop offset="1" stop-color="#3c3c3c"/>';
-// Тот же вертикальный "стальной" градиент, что у W (#wkSteel, y 40..620),
-// но в локальных координатах повёрнутой детали — иначе лезвие и хвостовик
-// выглядели бы другим металлом, чем буква.
-function wkLocalSteel(id: string, angle: number) {
-  const r = (angle * Math.PI) / 180, sn = Math.sin(r), cs = Math.cos(r);
-  const d1 = 40 - WK.PIVOT[1], d2 = 620 - WK.PIVOT[1];
-  return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${d1 * sn}" y1="${d1 * cs}" x2="${d2 * sn}" y2="${d2 * cs}">${WK_STEEL_STOPS}</linearGradient>`;
-}
-const WK_PIVOT_ORIGIN = `transform-origin:${WK.PIVOT[0]}px ${WK.PIVOT[1]}px`;
-function wkKParts(plain: boolean) {
-  const [px, py] = WK.PIVOT;
-  const hx = WK.HANDLE.x + WK.HANDLE.w / 2;
-  const f = (g: string) => (plain ? "#fff" : `url(#${g})`);
-  const defs = plain
-    ? ""
-    : `<defs>${wkLocalSteel("wkSteelB", WK.BLADE.angle)}${wkLocalSteel("wkSteelT", WK.TANG.angle)}<clipPath id="wkBevelClip"><path d="${WK.BLADE.bevel}"/></clipPath></defs>`;
-  const tang = `<g transform="translate(${px} ${py}) rotate(${WK.TANG.angle})"><rect x="0" y="${-WK.TANG.h / 2}" width="${WK.TANG.len}" height="${WK.TANG.h}" rx="${WK.TANG.h / 2}" fill="${f("wkSteelT")}"/></g>`;
-  const blade = `<g transform="translate(${px} ${py}) rotate(${WK.BLADE.angle})"><path d="${WK.BLADE.body}" fill="${f("wkSteelB")}"/>${
-    plain
-      ? ""
-      : `<path d="${WK.BLADE.seam}" fill="none" stroke="#08090b" stroke-width="5" stroke-linecap="round"/><path d="${WK.BLADE.bevel}" fill="#e02128"/><g clip-path="url(#wkBevelClip)"><rect class="${styles.wkGlint}" x="20" y="20" width="46" height="40" fill="#fff"/></g>`
-  }</g>`;
-  const handle = `<rect x="${WK.HANDLE.x}" y="${WK.TOP}" width="${WK.HANDLE.w}" height="${WK.BASE - WK.TOP}" fill="${f("wkSteel")}"/>${
-    plain ? "" : `<line x1="${hx}" y1="${WK.TOP + 46}" x2="${hx}" y2="${WK.BASE - 46}" stroke="#08090b" stroke-width="9" stroke-linecap="round"/>`
-  }`;
-  // Лезвие и хвостовик — ПОД рукоятью: в сложенном виде они спрятаны за
-  // ней, при раскрытии выходят из-под неё (у оси перекрытие закрывает винт).
-  return `${defs}<g class="${styles.wkK}">
-    <g class="${styles.wkTang}" style="${WK_PIVOT_ORIGIN}">${tang}</g>
-    <g class="${styles.wkBlade}" style="${WK_PIVOT_ORIGIN}">${blade}</g>
-    ${handle}
-    <g class="${styles.wkPivot}" style="${WK_PIVOT_ORIGIN}"><circle cx="${px}" cy="${py}" r="36" fill="#08090b"/><circle cx="${px}" cy="${py}" r="24" fill="${plain ? "#fff" : "#e02128"}"/></g>
-  </g>`;
-}
-
 export function SiteScene() {
   const t = useTranslations("Home");
   const nav = useTranslations("Nav");
@@ -265,9 +199,6 @@ export function SiteScene() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const splashRef = useRef<HTMLDivElement>(null);
-  const markMainRef = useRef<SVGSVGElement>(null);
-  const markSweepRef = useRef<SVGSVGElement>(null);
-  const wordRef = useRef<HTMLDivElement>(null);
   const heroNavRef = useRef<HTMLElement>(null);
   const hintRef = useRef<HTMLDivElement>(null);
   const skipRef = useRef<HTMLButtonElement>(null);
@@ -720,21 +651,6 @@ export function SiteScene() {
     const isHero = heroFirstVisit;
 
     // ---------- заставка ----------
-    function buildMark(el: SVGSVGElement | null, plain: boolean) {
-      if (!el) return;
-      const v = (s: { dur: number; start: number }) => `--d:${s.dur}s;--s:${s.start}s`;
-      const cuts = STROKES.map((s) =>
-        `<path class="${styles.cut}" d="${s.d}" stroke="${plain ? "#fff" : "url(#wkSteel)"}" pathLength="1" style="${v(s)}"/>`,
-      ).join("");
-      if (plain) {
-        el.innerHTML = `<g opacity=".85" filter="url(#sSoften)"><g clip-path="url(#wkClip)">${cuts}</g>${wkKParts(true)}</g>`;
-        return;
-      }
-      const heat = STROKES.map((s) => `<path class="${styles.heat}" d="${s.d}" pathLength="1" style="${v(s)}"/>`).join("");
-      const sparks = STROKES.map((s) => `<path class="${styles.spark}" d="${s.d}" pathLength="1" style="${v(s)}"/>`).join("");
-      el.innerHTML = `<g filter="url(#sShadow)"><g clip-path="url(#wkClip)">${cuts}${heat}</g>${wkKParts(false)}</g>${sparks}`;
-    }
-
     function reveal() {
       canvas.classList.add(styles.glOn);
     }
@@ -768,12 +684,9 @@ export function SiteScene() {
     let skipNow = () => {};
     if (isHero) {
       lockScroll();
-      buildMark(markMainRef.current, false);
-      buildMark(markSweepRef.current, true);
-      if (wordRef.current) {
-        wordRef.current.innerHTML = [...BRAND].map((c) => `<span>${c}</span>`).join("");
-      }
-      const MIN_MS = 4300, MAX_MS = 7000, t0 = performance.now();
+      // MIN_MS — под хореографию логотипа W.KONDRYA (splash-logo.tsx):
+      // WK пишется, затем круг, черта и надпись — последняя буква к ~4.4 с.
+      const MIN_MS = 5300, MAX_MS = 7000, t0 = performance.now();
       // Нажатие "Пропустить"/Escape ДО того, как прогрелась сцена (см.
       // warmupPromise в setup3D) — реальный баг, найденный на iPhone 14
       // Pro: сюда попадали БЕЗУСЛОВНО, canvas.glOn снимался, а рендер-цикл
@@ -1279,32 +1192,6 @@ export function SiteScene() {
   return (
     <>
       <div ref={wrapRef} className={styles.glWrap}>
-        <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
-          <defs>
-            <linearGradient id="wkSteel" gradientUnits="userSpaceOnUse" x1="0" y1="40" x2="0" y2="620">
-              <stop offset="0" stopColor="#ffffff" /><stop offset=".08" stopColor="#f2f2f2" /><stop offset=".5" stopColor="#868686" /><stop offset=".92" stopColor="#4a4a4a" /><stop offset="1" stopColor="#3c3c3c" />
-            </linearGradient>
-            <linearGradient id="wkBlade" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" stopColor="#8d9095" /><stop offset=".45" stopColor="#e6e8eb" /><stop offset="1" stopColor="#ffffff" />
-            </linearGradient>
-            <linearGradient id="wkTang" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" stopColor="#9a9da2" /><stop offset="1" stopColor="#4a4c50" />
-            </linearGradient>
-            <clipPath id="wkClip">
-              <path d={WK.W_OUTLINE} />
-            </clipPath>
-            <filter id="sShadow" filterUnits="userSpaceOnUse" x="-80" y="-60" width="1160" height="760">
-              <feDropShadow dx="0" dy="6" stdDeviation="16" floodColor="#000" floodOpacity=".55" />
-            </filter>
-            <filter id="sGlow" filterUnits="userSpaceOnUse" x="-80" y="-60" width="1160" height="760">
-              <feGaussianBlur stdDeviation="26" result="b" />
-              <feMerge><feMergeNode in="b" /><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-            </filter>
-            <filter id="sSoften" filterUnits="userSpaceOnUse" x="-80" y="-60" width="1160" height="760">
-              <feGaussianBlur stdDeviation="7" />
-            </filter>
-          </defs>
-        </svg>
 
         <canvas ref={canvasRef} className={`${styles.gl} ${heroFirstVisit ? styles.heroInteractive : ""}`} />
       </div>
@@ -1313,15 +1200,7 @@ export function SiteScene() {
         <div ref={splashRef} className={styles.splash}>
           <div className={styles.grain} />
           <div className={styles.lockup}>
-            <div className={styles.markwrap}>
-              <svg ref={markMainRef} className={styles.mark} viewBox="0 0 1000 640" role="img" aria-label="WK" />
-              <div className={styles.sweep}>
-                <svg ref={markSweepRef} className={styles.mark} viewBox="0 0 1000 640" aria-hidden="true" />
-              </div>
-            </div>
-            <div className={styles.rule} />
-            <div ref={wordRef} className={styles.word} />
-            <div className={styles.sub}>{t("tagline")}</div>
+            <SplashLogo />
           </div>
           <button ref={skipRef} className={styles.skip}>{t("skip")}</button>
         </div>

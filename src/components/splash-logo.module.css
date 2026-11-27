@@ -1,0 +1,78 @@
+/* Логотип W.KONDRYA в заставке — см. splash-logo.tsx. */
+
+.logo {
+  display: block;
+  width: min(88vw, 660px);
+  height: auto;
+  overflow: visible;
+}
+
+/* Штрих пера в маске: dasharray "1 2" при pathLength=1 — видимая часть
+   растёт от 0 до всей длины пути. */
+.pen {
+  stroke-dasharray: 1 2;
+  stroke-dashoffset: 1.02;
+  animation: wkDraw var(--d) cubic-bezier(0.5, 0.05, 0.35, 1) var(--s) forwards;
+}
+@keyframes wkDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Кончик пера: короткий штрих, бежит по той же оси с тем же темпом. */
+.nib {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 9;
+  stroke-linecap: round;
+  stroke-dasharray: 0.004 3;
+  stroke-dashoffset: 0;
+  opacity: 0;
+  animation: wkNib var(--d) cubic-bezier(0.5, 0.05, 0.35, 1) var(--s) forwards,
+    wkNibFade var(--d) linear var(--s) forwards;
+}
+@keyframes wkNib {
+  to {
+    stroke-dashoffset: -1;
+  }
+}
+@keyframes wkNibFade {
+  0% { opacity: 0; }
+  10% { opacity: 0.95; }
+  85% { opacity: 0.95; }
+  100% { opacity: 0; }
+}
+
+/* Буквы W.KONDRYA / BARBER — проявляются по очереди. */
+.letter {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transform: translateY(14px);
+  filter: blur(6px);
+  animation: wkLetter 0.75s cubic-bezier(0.16, 1, 0.3, 1) var(--s) forwards;
+}
+@keyframes wkLetter {
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pen {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+  .nib {
+    display: none;
+  }
+  .letter {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    animation: none;
+  }
+}
