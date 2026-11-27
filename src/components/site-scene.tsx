@@ -685,8 +685,9 @@ export function SiteScene() {
     if (isHero) {
       lockScroll();
       // MIN_MS — под хореографию логотипа W.KONDRYA (splash-logo.tsx):
-      // WK пишется, затем круг, черта и надпись — последняя буква к ~4.4 с.
-      const MIN_MS = 5300, MAX_MS = 7000, t0 = performance.now();
+      // WK пишется, затем круг, черта и надпись — последняя буква к ~3.8 с
+      // (темп SPLASH_SPEED = 0.7).
+      const MIN_MS = 3800, MAX_MS = 7000, t0 = performance.now();
       // Нажатие "Пропустить"/Escape ДО того, как прогрелась сцена (см.
       // warmupPromise в setup3D) — реальный баг, найденный на iPhone 14
       // Pro: сюда попадали БЕЗУСЛОВНО, canvas.glOn снимался, а рендер-цикл

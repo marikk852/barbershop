@@ -51,7 +51,7 @@
   transform-origin: 50% 100%;
   transform: translateY(14px);
   filter: blur(6px);
-  animation: wkLetter 0.75s cubic-bezier(0.16, 1, 0.3, 1) var(--s) forwards;
+  animation: wkLetter var(--ld, 0.75s) cubic-bezier(0.16, 1, 0.3, 1) var(--s) forwards;
 }
 @keyframes wkLetter {
   to {

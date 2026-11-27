@@ -16,6 +16,12 @@ import styles from "./splash-logo.module.css";
 
 type Stroke = { d: string; start: number; dur: number; width: number };
 
+// Общий темп анимации: тайминги ниже — "в базовом темпе", реальные = × SPEED
+// (0.7 — на 30% быстрее, по просьбе владельца). Длительность заставки
+// (MIN_MS в site-scene.tsx) подобрана под этот темп.
+export const SPLASH_SPEED = 0.7;
+const T = (sec: number) => +(sec * SPLASH_SPEED).toFixed(3);
+
 const PEN: Stroke[] = [
   { d: L.pen.w, start: 0.25, dur: 1.05, width: 30 }, // W с петлёй-росчерком
   { d: L.pen.kStem, start: 1.36, dur: 0.38, width: 30 }, // стойка K
@@ -29,7 +35,7 @@ const DIVIDER: Stroke = { d: L.dividerLine, start: 3.62, dur: 0.36, width: 14 };
 const TITLE_START = 3.82;
 const SUBTITLE_START = 4.36;
 
-const v = (s: Stroke) => ({ "--s": `${s.start}s`, "--d": `${s.dur}s` }) as CSSProperties;
+const v = (s: Stroke) => ({ "--s": `${T(s.start)}s`, "--d": `${T(s.dur)}s` }) as CSSProperties;
 
 function MaskStrokes({ strokes }: { strokes: Stroke[] }) {
   return (
@@ -81,14 +87,14 @@ export function SplashLogo() {
         <path d={L.circle} mask="url(#wkCircleMask)" />
         <path d={L.divider} mask="url(#wkDividerMask)" />
         {L.title.map((d, i) => (
-          <path key={`t${i}`} className={styles.letter} d={d} style={{ "--s": `${TITLE_START + i * 0.07}s` } as CSSProperties} />
+          <path key={`t${i}`} className={styles.letter} d={d} style={{ "--s": `${T(TITLE_START + i * 0.07)}s`, "--ld": `${T(0.75)}s` } as CSSProperties} />
         ))}
         {L.subtitle.map((d, i) => (
           <path
             key={`s${i}`}
             className={styles.letter}
             d={d}
-            style={{ "--s": `${SUBTITLE_START + i * 0.06}s` } as CSSProperties}
+            style={{ "--s": `${T(SUBTITLE_START + i * 0.06)}s`, "--ld": `${T(0.75)}s` } as CSSProperties}
           />
         ))}
       </g>
